@@ -895,6 +895,18 @@ LJLIB_CF(ujit_debug_gettableinfo)
 	return 1;
 }
 
+#include "uj_vm.h"
+/* ... ujit.debug.cinterpcall(func, nres, ...) */
+LJLIB_CF(ujit_debug_cinterpcall)
+{
+	lua_Integer nres = lua_tointeger(L, 2);
+
+	lua_remove(L, 2);
+	uj_vm_call(L, lua_gettop(L) - 1, (int)nres);
+
+	return 0;
+}
+
 #include "lj_libdef.h"
 
 /* ----- ujit.string module ------------------------------------------------- */
