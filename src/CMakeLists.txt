@@ -52,6 +52,9 @@ make_source_list(SOURCES_RUNTIME # Core runtime
     lib/init.c
 )
 
+list(APPEND SOURCES_RUNTIME uj_vm.c)
+set_source_files_properties(uj_vm.c PROPERTIES COMPILE_FLAGS "-O3")
+
 if(UJIT_ENABLE_GDBJIT)
   list(APPEND SOURCES_RUNTIME uj_gdbjit.c)
 endif()
