@@ -16,27 +16,17 @@
 
 #define vm_assert(x) ((x)? (void)0 : abort())
 
-struct raw_ins {
-	uint8_t op;
-	uint8_t ra;
-	union {
-		struct {
-			uint8_t rc;
-			uint8_t rb;
-		};
-		uint16_t rd;
-	};
-};
-
-#define vm_raw_ra(ins) (((struct raw_ins)(ins)).ra)
-#define vm_raw_rb(ins) (((struct raw_ins)(ins)).rb)
-#define vm_raw_rc(ins) (((struct raw_ins)(ins)).rc)
-#define vm_raw_rd(ins) (((struct raw_ins)(ins)).rd)
-
 /* FIXME: Align with x2 API from lj_bc.h */
-#define vm_ra(ins) ((((ins) >> 8) & 0xff) * (sizeof(TValue) / 2))
-#define vm_rb(ins) ((ins) >> 24)
-#define vm_rd(ins) (((ins) >> 16) * (sizeof(TValue) / 2))
+
+#define vm_raw_ra(ins) (((ins) >> 8) & 0xff)
+#define vm_raw_rb(ins) ((ins) >> 24)
+#define vm_raw_rc(ins) (((ins) >> 16) & 0xff)
+#define vm_raw_rd(ins) (((ins) >> 16))
+
+#define vm_ra(ins) (vm_raw_ra(ins) * (sizeof(TValue) / 2))
+#define vm_rb(ins) (vm_raw_rb(ins) * (sizeof(TValue) / 2))
+#define vm_rc(ins) (vm_raw_rc(ins) * (sizeof(TValue) / 2))
+#define vm_rd(ins) (vm_raw_rd(ins) * (sizeof(TValue) / 2))
 
 /* FIXME: Apply base2func everywhere */
 #define base2func(base) ((((base) - 1)->fr.func)->fn)
@@ -59,14 +49,18 @@ typedef void *(* bc_handler)(BCIns, BCIns *, TValue *, struct vm_frame *);
 
 static void *uj_BC_NYI(HANDLER_SIGNATURE);
 static void *uj_BC_MOV(HANDLER_SIGNATURE);
+static void *uj_BC_ADD(HANDLER_SIGNATURE);
+static void *uj_BC_KSHORT(HANDLER_SIGNATURE);
+static void *uj_BC_KNUM(HANDLER_SIGNATURE);
+static void *uj_BC_GGET(HANDLER_SIGNATURE);
+static void *uj_BC_CALL(HANDLER_SIGNATURE);
+static void *uj_BC_RET0(HANDLER_SIGNATURE);
 static void *uj_BC_IFUNCF(HANDLER_SIGNATURE);
 static void *uj_BC_HOTCNT(HANDLER_SIGNATURE);
-static void *uj_BC_RET0(HANDLER_SIGNATURE);
 
 /*
  * FORI
  * FORL
- * CALL
  * RET0
  */
 
@@ -123,7 +117,7 @@ static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x31 TSETB */
 	uj_BC_NYI, /* 0x32 TSETM */
 	uj_BC_NYI, /* 0x33 CALLM */
-	uj_BC_NYI, /* 0x34 CALL */
+	uj_BC_CALL, /* 0x34 CALL */
 	uj_BC_NYI, /* 0x35 CALLMT */
 	uj_BC_NYI, /* 0x36 CALLT */
 	uj_BC_NYI, /* 0x37 ITERC */
@@ -265,7 +259,7 @@ static void *uj_BC_KSHORT(HANDLER_SIGNATURE)
 static void *uj_BC_KNUM(HANDLER_SIGNATURE)
 {
 	TValue *dst = base + (ptrdiff_t)vm_ra(ins);
-	TValue *src = vmf->kbase + (ptrdiff_t)vm_rd(ins);
+	TValue *src = (TValue *)vmf->kbase + (ptrdiff_t)vm_rd(ins); /* FIXME */
 
 	*dst = *src;
 
@@ -274,9 +268,9 @@ static void *uj_BC_KNUM(HANDLER_SIGNATURE)
 
 static void *uj_BC_GGET(HANDLER_SIGNATURE)
 {
-	GCtab *tab = base2func(base)->l.env;
-	GCstr *str = vmf->kbase + (ptrdiff_t)~vm_raw_rd(ins); /* FIXME: */
-	Node *n = &(t->node[t->hmask & str->hash]);
+	GCtab *tab = base2func(base).l.env;
+	GCstr *str = (GCstr *)vmf->kbase + (ptrdiff_t)~vm_raw_rd(ins); /* FIXME */
+	Node *n = &(tab->node[tab->hmask & str->hash]);
 
 	do {
 		TValue *dst;
@@ -286,7 +280,7 @@ static void *uj_BC_GGET(HANDLER_SIGNATURE)
 				goto key_not_found;
 
 			dst = base + (ptrdiff_t)vm_ra(ins);
-			*dst = (TValue)n;
+			*dst = n->val;
 			DISPATCH();
 		}
 	} while ((n = n->next));
@@ -295,6 +289,22 @@ key_not_found:
 	vm_assert(0);
 	DISPATCH();
 	/* NYI: Implement nil handling, metamethod lookup, etc. */
+}
+
+static void *uj_BC_CALL(HANDLER_SIGNATURE)
+{
+	TValue *fn = base + (ptrdiff_t)vm_ra(ins);
+
+	/* NYI: set_vmstate INTERP */
+
+	if (LJ_UNLIKELY(!tvisfunc(fn)))
+		vm_assert(0); /* NYI: metacall */
+
+	base = fn + 1;
+	fn->fr.tp.pcr = pc;
+	pc = ((GCfuncL *)fn->gcr)->pc;
+
+	DISPATCH();
 }
 
 static void *uj_BC_HOTCNT(HANDLER_SIGNATURE)
@@ -340,7 +350,7 @@ static void *uj_BC_RET0(HANDLER_SIGNATURE)
 	}
 
 	/* Clear missing return values. */
-	for (ptrdiff_t i = -1; i <= (ptrdiff_t)vm_rb(*(pc - 1)) - 2; i++)
+	for (ptrdiff_t i = -1; i <= (ptrdiff_t)vm_raw_rb(*(pc - 1)) - 2; i++)
 		setnilV(base + i);
 
 	/* Restore base: */
