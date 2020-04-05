@@ -57,9 +57,9 @@ static void *uj_BC_CALL(HANDLER_SIGNATURE);
 static void *uj_BC_RET0(HANDLER_SIGNATURE);
 static void *uj_BC_IFUNCF(HANDLER_SIGNATURE);
 static void *uj_BC_HOTCNT(HANDLER_SIGNATURE);
+static void *uj_BC_FORI(HANDLER_SIGNATURE);
 
 /*
- * FORI
  * FORL
  * RET0
  */
@@ -130,7 +130,7 @@ static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x3e RET1 */
 	uj_BC_HOTCNT, /* 0x3f HOTCNT */
 	uj_BC_NYI, /* 0x40 COVERG */
-	uj_BC_NYI, /* 0x41 FORI */
+	uj_BC_FORI, /* 0x41 FORI */
 	uj_BC_NYI, /* 0x42 JFORI */
 	uj_BC_NYI, /* 0x43 FORL */
 	uj_BC_NYI, /* 0x44 IFORL */
@@ -311,6 +311,49 @@ static void *uj_BC_HOTCNT(HANDLER_SIGNATURE)
 {
 	/* NYI: Payload */
 	DISPATCH();
+}
+
+static void *uj_BC_FORI(HANDLER_SIGNATURE)
+{
+UJ_PEDANTIC_OFF
+
+	static void *comparator[] = {
+		&&positive_step,
+		&&non_positive_step
+	};
+	TValue *idx;
+	lua_Number i, stop;
+
+	/* NYI: checktimeout */
+
+	idx = base + (ptrdiff_t)vm_ra(ins);
+
+	if (LJ_UNLIKELY(!tvisnum(idx)))
+		vm_assert(0); /* NYI: vmeta_for */
+
+	if (LJ_UNLIKELY(!tvisnum(idx + 1)))
+		vm_assert(0); /* NYI: vmeta_for */
+
+	if (LJ_UNLIKELY(!tvisnum(idx + 2)))
+		vm_assert(0); /* NYI: vmeta_for */
+
+	i = numV(idx);
+	setnumV(idx + 3, i);
+	stop = numV(idx + 1);
+
+	goto *comparator[rawV(idx + 2) >> 63];
+
+positive_step:
+	if (stop < i)
+		pc += vm_raw_rd(ins) - BCBIAS_J;
+	DISPATCH();
+
+non_positive_step:
+	if (stop >= i)
+		pc += vm_raw_rd(ins) - BCBIAS_J;
+	DISPATCH();
+
+UJ_PEDANTIC_OFF
 }
 
 static void *uj_BC_IFUNCF(HANDLER_SIGNATURE)
