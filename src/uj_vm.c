@@ -23,10 +23,10 @@
 #define vm_raw_rc(ins) (((ins) >> 16) & 0xff)
 #define vm_raw_rd(ins) (((ins) >> 16))
 
-#define vm_ra(ins) (vm_raw_ra(ins) * (sizeof(TValue) / 2))
-#define vm_rb(ins) (vm_raw_rb(ins) * (sizeof(TValue) / 2))
-#define vm_rc(ins) (vm_raw_rc(ins) * (sizeof(TValue) / 2))
-#define vm_rd(ins) (vm_raw_rd(ins) * (sizeof(TValue) / 2))
+#define vm_ra(ins) (vm_raw_ra(ins) >> 1)
+#define vm_rb(ins) (vm_raw_rb(ins) >> 1)
+#define vm_rc(ins) (vm_raw_rc(ins) >> 1)
+#define vm_rd(ins) (vm_raw_rd(ins) >> 1)
 
 /* FIXME: Apply base2func everywhere */
 #define base2func(base) ((((base) - 1)->fr.func)->fn)
@@ -58,11 +58,7 @@ static void *uj_BC_RET0(HANDLER_SIGNATURE);
 static void *uj_BC_IFUNCF(HANDLER_SIGNATURE);
 static void *uj_BC_HOTCNT(HANDLER_SIGNATURE);
 static void *uj_BC_FORI(HANDLER_SIGNATURE);
-
-/*
- * FORL
- * RET0
- */
+static void *uj_BC_FORL(HANDLER_SIGNATURE);
 
 static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x00 ISLT */
@@ -132,9 +128,9 @@ static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x40 COVERG */
 	uj_BC_FORI, /* 0x41 FORI */
 	uj_BC_NYI, /* 0x42 JFORI */
-	uj_BC_NYI, /* 0x43 FORL */
-	uj_BC_NYI, /* 0x44 IFORL */
-	uj_BC_NYI, /* 0x45 JFORL */
+	uj_BC_FORL, /* 0x43 FORL */
+	uj_BC_FORL, /* 0x44 IFORL */ /* FIXME */
+	uj_BC_FORL, /* 0x45 JFORL */ /* FIXME */
 	uj_BC_NYI, /* 0x46 ITERL */
 	uj_BC_NYI, /* 0x47 IITERL */
 	uj_BC_NYI, /* 0x48 JITERL */
@@ -234,9 +230,9 @@ static void *uj_BC_MOV(HANDLER_SIGNATURE)
 
 static void *uj_BC_ADD(HANDLER_SIGNATURE)
 {
-	TValue *dst = base + (ptrdiff_t)(vm_raw_ra(ins) * sizeof(TValue) / 2);
-	TValue *op1 = base + (ptrdiff_t)(vm_raw_rb(ins) * sizeof(TValue) / 2);
-	TValue *op2 = base + (ptrdiff_t)(vm_raw_rc(ins) * sizeof(TValue) / 2);
+	TValue *dst = base + (ptrdiff_t)vm_ra(ins);
+	TValue *op1 = base + (ptrdiff_t)vm_rb(ins);
+	TValue *op2 = base + (ptrdiff_t)vm_rc(ins);
 
 	if (LJ_UNLIKELY(!tvisnum(op1) || !tvisnum(op2))) {
 		/* FIXME: Implement metacall */
@@ -269,7 +265,7 @@ static void *uj_BC_KNUM(HANDLER_SIGNATURE)
 static void *uj_BC_GGET(HANDLER_SIGNATURE)
 {
 	GCtab *tab = base2func(base).l.env;
-	GCstr *str = (GCstr *)vmf->kbase + (ptrdiff_t)~vm_raw_rd(ins); /* FIXME */
+	GCstr *str = (GCstr *)*((GCobj **)vmf->kbase + (int16_t)~(uint16_t)vm_raw_rd(ins)); /* FIXME */
 	Node *n = &(tab->node[tab->hmask & str->hash]);
 
 	do {
@@ -345,12 +341,50 @@ UJ_PEDANTIC_OFF
 
 positive_step:
 	if (stop < i)
-		pc += vm_raw_rd(ins) - BCBIAS_J;
+		pc += (int16_t)vm_raw_rd(ins) - BCBIAS_J;
 	DISPATCH();
 
 non_positive_step:
 	if (stop >= i)
-		pc += vm_raw_rd(ins) - BCBIAS_J;
+		pc += (int16_t)vm_raw_rd(ins) - BCBIAS_J;
+	DISPATCH();
+
+UJ_PEDANTIC_OFF
+}
+
+static void *uj_BC_FORL(HANDLER_SIGNATURE)
+{
+UJ_PEDANTIC_OFF
+
+	static void *comparator[] = {
+		&&positive_step,
+		&&non_positive_step
+	};
+	TValue *idx;
+	lua_Number i, stop;
+
+	/* NYI: checktimeout */
+	/* NYI: assert_bad_for_arg_type */
+
+	idx = base + (ptrdiff_t)vm_ra(ins);
+
+	i = numV(idx);
+	stop = numV(idx + 1);
+
+	i += numV(idx + 2);
+	setnumV(idx, i);
+	setnumV(idx + 3, i);
+
+	goto *comparator[rawV(idx + 2) >> 63];
+
+positive_step:
+	if (stop >= i)
+		pc += (int16_t)vm_raw_rd(ins) - BCBIAS_J;
+	DISPATCH();
+
+non_positive_step:
+	if (stop < i)
+		pc += (int16_t)vm_raw_rd(ins) - BCBIAS_J;
 	DISPATCH();
 
 UJ_PEDANTIC_OFF
