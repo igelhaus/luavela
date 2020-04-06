@@ -3,7 +3,9 @@
  * Copyright (C) 2015-2019 IPONWEB Ltd. See Copyright Notice in COPYRIGHT
  */
 
+#ifndef NDEBUG
 #define NDEBUG
+#endif
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -24,9 +26,16 @@
 #define vm_raw_rd(ins) (((ins) >> 16))
 
 #define vm_ra(ins) (vm_raw_ra(ins) >> 1)
-#define vm_rb(ins) (vm_raw_rb(ins) >> 1)
-#define vm_rc(ins) (vm_raw_rc(ins) >> 1)
 #define vm_rd(ins) (vm_raw_rd(ins) >> 1)
+
+#define vm_slot_ra(base, ins) \
+	(TValue *)((char *)(base) + (ptrdiff_t)vm_raw_ra(ins) * sizeof(TValue) / 2)
+#define vm_slot_rb(base, ins) \
+	(TValue *)((char *)(base) + (ptrdiff_t)vm_raw_rb(ins) * sizeof(TValue) / 2)
+#define vm_slot_rc(base, ins) \
+	(TValue *)((char *)(base) + (ptrdiff_t)vm_raw_rc(ins) * sizeof(TValue) / 2)
+#define vm_slot_rd(base, ins) \
+	(TValue *)((char *)(base) + (ptrdiff_t)vm_raw_rd(ins) * sizeof(TValue) / 2)
 
 /* FIXME: Apply base2func everywhere */
 #define base2func(base) ((((base) - 1)->fr.func)->fn)
@@ -39,13 +48,21 @@ struct vm_frame {
 	void *kbase;
 };
 
-typedef void *(* bc_handler)(BCIns, BCIns *, TValue *, struct vm_frame *);
+/* NB! For development purposes only: */
+
+typedef void *(* bc_handler)(BCIns *, TValue *, struct vm_frame *, BCIns);
+
+#define HANDLER_SIGNATURE \
+	BCIns *pc, TValue *base, struct vm_frame *vmf, BCIns ins
+
+#define HANDLER_ARGUMENTS pc, base, vmf, ins
+
+#define vm_next(pc, base, vmf) \
+	(dispatch[bc_op(*(pc))])((pc) + 1, (base), (vmf), *(pc))
 
 /* NB! For development purposes only: */
-#define HANDLER_SIGNATURE \
-	BCIns ins, BCIns *pc, TValue *base, struct vm_frame *vmf
-
-#define HANDLER_ARGUMENTS ins, pc, base, vmf
+#define DISPATCH() \
+	return vm_next(pc, base, vmf)
 
 static void *uj_BC_NYI(HANDLER_SIGNATURE);
 static void *uj_BC_MOV(HANDLER_SIGNATURE);
@@ -151,13 +168,6 @@ static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x57 FUNCCW */
 };
 
-#define vm_next(pc, base, vmf) \
-	(dispatch[bc_op(*(pc))])(*(pc), (pc) + 1, (base), (vmf))
-
-/* NB! For development purposes only: */
-#define DISPATCH() \
-	return vm_next(pc, base, vmf)
-
 void uj_vm_call(lua_State *L, int nargs, int nres)
 {
 	const GCfunc *fn;
@@ -220,8 +230,8 @@ static void *uj_BC_NYI(HANDLER_SIGNATURE)
 
 static void *uj_BC_MOV(HANDLER_SIGNATURE)
 {
-	TValue *dst = base + (ptrdiff_t)vm_ra(ins);
-	TValue *src = base + (ptrdiff_t)vm_rd(ins);
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *src = vm_slot_rd(base, ins);
 
 	*dst = *src;
 
@@ -230,12 +240,12 @@ static void *uj_BC_MOV(HANDLER_SIGNATURE)
 
 static void *uj_BC_ADD(HANDLER_SIGNATURE)
 {
-	TValue *dst = base + (ptrdiff_t)vm_ra(ins);
-	TValue *op1 = base + (ptrdiff_t)vm_rb(ins);
-	TValue *op2 = base + (ptrdiff_t)vm_rc(ins);
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *op1 = vm_slot_rb(base, ins);
+	TValue *op2 = vm_slot_rc(base, ins);
 
 	if (LJ_UNLIKELY(!tvisnum(op1) || !tvisnum(op2))) {
-		/* FIXME: Implement metacall */
+		vm_assert(0); /* FIXME: Implement metacall */
 	}
 
 	setnumV(dst, numV(op1) + numV(op2));
@@ -244,7 +254,7 @@ static void *uj_BC_ADD(HANDLER_SIGNATURE)
 
 static void *uj_BC_KSHORT(HANDLER_SIGNATURE)
 {
-	TValue *dst = base + (ptrdiff_t)vm_ra(ins);
+	TValue *dst = vm_slot_ra(base, ins);
 	int16_t i16 = (int16_t)vm_raw_rd(ins);
 
 	setnumV(dst, (double)i16);
@@ -254,8 +264,8 @@ static void *uj_BC_KSHORT(HANDLER_SIGNATURE)
 
 static void *uj_BC_KNUM(HANDLER_SIGNATURE)
 {
-	TValue *dst = base + (ptrdiff_t)vm_ra(ins);
-	TValue *src = (TValue *)vmf->kbase + (ptrdiff_t)vm_rd(ins); /* FIXME */
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *src = vm_slot_rd(vmf->kbase, ins);
 
 	*dst = *src;
 
@@ -275,7 +285,7 @@ static void *uj_BC_GGET(HANDLER_SIGNATURE)
 			if (tvisnil(&n->val))
 				goto key_not_found;
 
-			dst = base + (ptrdiff_t)vm_ra(ins);
+			dst = vm_slot_ra(base, ins);
 			*dst = n->val;
 			DISPATCH();
 		}
@@ -289,7 +299,7 @@ key_not_found:
 
 static void *uj_BC_CALL(HANDLER_SIGNATURE)
 {
-	TValue *fn = base + (ptrdiff_t)vm_ra(ins);
+	TValue *fn = vm_slot_ra(base, ins);
 
 	/* NYI: set_vmstate INTERP */
 
@@ -322,7 +332,7 @@ UJ_PEDANTIC_OFF
 
 	/* NYI: checktimeout */
 
-	idx = base + (ptrdiff_t)vm_ra(ins);
+	idx = vm_slot_ra(base, ins);
 
 	if (LJ_UNLIKELY(!tvisnum(idx)))
 		vm_assert(0); /* NYI: vmeta_for */
@@ -366,7 +376,7 @@ UJ_PEDANTIC_OFF
 	/* NYI: checktimeout */
 	/* NYI: assert_bad_for_arg_type */
 
-	idx = base + (ptrdiff_t)vm_ra(ins);
+	idx = vm_slot_ra(base, ins);
 
 	i = numV(idx);
 	stop = numV(idx + 1);
@@ -392,7 +402,7 @@ UJ_PEDANTIC_OFF
 
 static void *uj_BC_IFUNCF(HANDLER_SIGNATURE)
 {
-	TValue *top = base + vm_ra(ins);
+	TValue *top = vm_slot_ra(base, ins);
 
 	/* Setup kbase: */
 	vmf->kbase = pc2proto(((base - 1)->fr.func)->fn.l.pc)->k;
