@@ -122,6 +122,11 @@ use constant CHECKS => {
 		'src/frontend/lj_bcread.c' => [
 			'-misc-redundant-expression'
 		],
+		# Work in progress, trash and ugar. FIXME: revise
+		'src/uj_vm.c' => [
+			'-misc-unused-parameters',
+			'-misc-suspicious-semicolon',
+		],
         # Long test cases are totally reasonable here.
         'tests/impl/uJIT-tests-C/suite/test_emit_sse2.c' => [
             '-hicpp-function-size'

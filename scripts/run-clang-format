@@ -110,6 +110,8 @@ use constant {
 			'src/lualib.h',
 			# Suppressed due to unfixable macro definition
 			'src/uj_errmsg.h',
+			# Work in progress, trash and ugar. FIXME: revise
+			'src/uj_vm.c',
 			# Suppressed due to unfixable macro definition
 			'src/uj_vmstate.h',
 			'src/ujit.c',
