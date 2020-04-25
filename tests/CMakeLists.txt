@@ -47,6 +47,17 @@ add_custom_command(OUTPUT gen_benchmark_data.ok
 )
 
 #
+# Tests for C interpreter
+#
+
+add_custom_target(tests_cinterp
+  COMMENT "Tests for C interpreter"
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  COMMAND
+      $<TARGET_FILE:ujit_static> tests/cinterp.lua
+)
+
+#
 # Main targets
 #
 
@@ -66,6 +77,7 @@ add_dependencies(tests
   lua-Harness
   Lua-5.1-tests
   LuaJIT-tests
+  tests_cinterp
 )
 
 if(UJIT_LUA52COMPAT)
