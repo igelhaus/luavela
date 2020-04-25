@@ -25,8 +25,7 @@
 #define vm_raw_rc(ins) (((ins) >> 16) & 0xff)
 #define vm_raw_rd(ins) (((ins) >> 16))
 
-#define vm_ra(ins) (vm_raw_ra(ins) >> 1)
-#define vm_rd(ins) (vm_raw_rd(ins) >> 1)
+#define vm_index_ra(ins) (vm_raw_ra(ins) >> 1)
 
 #define vm_slot_ra(base, ins) \
 	(TValue *)((char *)(base) + (ptrdiff_t)vm_raw_ra(ins) * sizeof(TValue) / 2)
@@ -191,8 +190,8 @@ void uj_vm_call(lua_State *L, int nargs, int nres)
 
 static void *vm_return(HANDLER_SIGNATURE)
 {
-	int8_t ra = vm_ra(ins);
-	int8_t rd = vm_rd(ins);
+	int8_t ra = vm_index_ra(ins);
+	int8_t rd = vm_raw_rd(ins);
 	lua_State *L = vmf->L;
 
 	for (ptrdiff_t i = -1; i < (ptrdiff_t)rd - 2; i++)
@@ -441,7 +440,7 @@ static void *uj_BC_RET0(HANDLER_SIGNATURE)
 		setnilV(base + i);
 
 	/* Restore base: */
-	base -= ((ptrdiff_t)vm_ra(*(pc - 1)) + 1);
+	base -= ((ptrdiff_t)vm_index_ra(*(pc - 1)) + 1);
 
 	/* Setup kbase: */
 	vmf->kbase = pc2proto(((base - 1)->fr.func)->fn.l.pc)->k;
