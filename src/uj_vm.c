@@ -7,6 +7,7 @@
 #define NDEBUG
 #endif
 
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -65,7 +66,13 @@ typedef void *(* bc_handler)(BCIns *, TValue *, struct vm_frame *, BCIns);
 
 static void *uj_BC_NYI(HANDLER_SIGNATURE);
 static void *uj_BC_MOV(HANDLER_SIGNATURE);
+static void *uj_BC_UNM(HANDLER_SIGNATURE);
 static void *uj_BC_ADD(HANDLER_SIGNATURE);
+static void *uj_BC_SUB(HANDLER_SIGNATURE);
+static void *uj_BC_MUL(HANDLER_SIGNATURE);
+static void *uj_BC_DIV(HANDLER_SIGNATURE);
+static void *uj_BC_MOD(HANDLER_SIGNATURE);
+static void *uj_BC_POW(HANDLER_SIGNATURE);
 static void *uj_BC_KSHORT(HANDLER_SIGNATURE);
 static void *uj_BC_KNUM(HANDLER_SIGNATURE);
 static void *uj_BC_GGET(HANDLER_SIGNATURE);
@@ -95,14 +102,14 @@ static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x0f ISF */
 	uj_BC_MOV, /* 0x10 MOV */
 	uj_BC_NYI, /* 0x11 NOT */
-	uj_BC_NYI, /* 0x12 UNM */
+	uj_BC_UNM, /* 0x12 UNM */
 	uj_BC_NYI, /* 0x13 LEN */
 	uj_BC_ADD, /* 0x14 ADD */
-	uj_BC_NYI, /* 0x15 SUB */
-	uj_BC_NYI, /* 0x16 MUL */
-	uj_BC_NYI, /* 0x17 DIV */
-	uj_BC_NYI, /* 0x18 MOD */
-	uj_BC_NYI, /* 0x19 POW */
+	uj_BC_SUB, /* 0x15 SUB */
+	uj_BC_MUL, /* 0x16 MUL */
+	uj_BC_DIV, /* 0x17 DIV */
+	uj_BC_MOD, /* 0x18 MOD */
+	uj_BC_POW, /* 0x19 POW */
 	uj_BC_NYI, /* 0x1a CAT */
 	uj_BC_NYI, /* 0x1b KSTR */
 	uj_BC_NYI, /* 0x1c KCDATA */
@@ -237,6 +244,20 @@ static void *uj_BC_MOV(HANDLER_SIGNATURE)
 	DISPATCH();
 }
 
+static void *uj_BC_UNM(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *op1 = vm_slot_rd(base, ins);
+
+	if (LJ_UNLIKELY(!tvisnum(op1))) {
+		vm_assert(0); /* FIXME: Implement metacall */
+	}
+
+	setnumV(dst, -numV(op1));
+
+	DISPATCH();
+}
+
 static void *uj_BC_ADD(HANDLER_SIGNATURE)
 {
 	TValue *dst = vm_slot_ra(base, ins);
@@ -248,6 +269,87 @@ static void *uj_BC_ADD(HANDLER_SIGNATURE)
 	}
 
 	setnumV(dst, numV(op1) + numV(op2));
+	DISPATCH();
+}
+
+static void *uj_BC_SUB(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *op1 = vm_slot_rb(base, ins);
+	TValue *op2 = vm_slot_rc(base, ins);
+
+	if (LJ_UNLIKELY(!tvisnum(op1) || !tvisnum(op2))) {
+		vm_assert(0); /* FIXME: Implement metacall */
+	}
+
+	setnumV(dst, numV(op1) - numV(op2));
+	DISPATCH();
+}
+
+static void *uj_BC_MUL(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *op1 = vm_slot_rb(base, ins);
+	TValue *op2 = vm_slot_rc(base, ins);
+
+	if (LJ_UNLIKELY(!tvisnum(op1) || !tvisnum(op2))) {
+		vm_assert(0); /* FIXME: Implement metacall */
+	}
+
+	setnumV(dst, numV(op1) * numV(op2));
+	DISPATCH();
+}
+
+static void *uj_BC_DIV(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *op1 = vm_slot_rb(base, ins);
+	TValue *op2 = vm_slot_rc(base, ins);
+
+	if (LJ_UNLIKELY(!tvisnum(op1) || !tvisnum(op2))) {
+		vm_assert(0); /* FIXME: Implement metacall */
+	}
+
+	setnumV(dst, numV(op1) / numV(op2));
+	DISPATCH();
+}
+
+static LJ_AINLINE double uj_vm_mod(double a, double b)
+{
+	/* according to Lua Reference */
+	return a - floor(a / b) * b;
+}
+
+static void *uj_BC_MOD(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *op1 = vm_slot_rb(base, ins);
+	TValue *op2 = vm_slot_rc(base, ins);
+
+	if (LJ_UNLIKELY(!tvisnum(op1) || !tvisnum(op2))) {
+		vm_assert(0); /* FIXME: Implement metacall */
+	}
+
+	setnumV(dst, uj_vm_mod(numV(op1), numV(op2)));
+	DISPATCH();
+}
+
+static LJ_AINLINE double uj_vm_pow(double x, double exp)
+{
+	return pow(x, exp);
+}
+
+static void *uj_BC_POW(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *op1 = vm_slot_rb(base, ins);
+	TValue *op2 = vm_slot_rc(base, ins);
+
+	if (LJ_UNLIKELY(!tvisnum(op1) || !tvisnum(op2))) {
+		vm_assert(0); /* FIXME: Implement metacall */
+	}
+
+	setnumV(dst, uj_vm_pow(numV(op1), numV(op2)));
 	DISPATCH();
 }
 
