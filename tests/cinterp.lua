@@ -142,6 +142,26 @@ local loop07 = function()
 	end
 end
 
+
+-- 0001    HOTCNT
+-- 0002    KSTR     0   0      ; "imun"
+-- 0003    KCDATA   1   1
+-- 0004    KSHORT   2   0
+-- 0005    KNUM     3   0      ; 3.1415926
+-- 0006    KPRI     4   0
+-- 0007    KPRI     5   1
+-- 0008    KPRI     6   2
+-- 0009    KNIL     7   9
+-- 0010    RET0     0   1
+
+local ktest = function()
+	local kstr = 'imun'
+	local kcdata = -1ULL
+	local kshort = 0
+	local knum = 3.1415926
+	local knil, ktrue, kfalse, knil1, knil2, knil3 = nil, false, true
+end
+
 local cinterpcall = ujit.debug.cinterpcall
 assert(type(cinterpcall) == "function")
 
@@ -152,5 +172,6 @@ cinterpcall(loop04, 0)
 cinterpcall(loop05, 0)
 cinterpcall(loop06, 0)
 cinterpcall(loop07, 0)
+cinterpcall(ktest, 0)
 
 print("Canary alive")
