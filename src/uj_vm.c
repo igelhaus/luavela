@@ -36,6 +36,8 @@
 	(TValue *)((char *)(base) + (ptrdiff_t)vm_raw_rc(ins) * sizeof(TValue) / 2)
 #define vm_slot_rd(base, ins) \
 	(TValue *)((char *)(base) + (ptrdiff_t)vm_raw_rd(ins) * sizeof(TValue) / 2)
+#define vm_kbase_gco(kbase, kindex) \
+	((GCobj *)*((GCobj **)(kbase) + (int16_t)~(uint16_t)(kindex)))
 
 /* FIXME: Apply base2func everywhere */
 #define base2func(base) ((((base) - 1)->fr.func)->fn)
@@ -73,8 +75,12 @@ static void *uj_BC_MUL(HANDLER_SIGNATURE);
 static void *uj_BC_DIV(HANDLER_SIGNATURE);
 static void *uj_BC_MOD(HANDLER_SIGNATURE);
 static void *uj_BC_POW(HANDLER_SIGNATURE);
+static void *uj_BC_KSTR(HANDLER_SIGNATURE);
+static void *uj_BC_KCDATA(HANDLER_SIGNATURE);
 static void *uj_BC_KSHORT(HANDLER_SIGNATURE);
 static void *uj_BC_KNUM(HANDLER_SIGNATURE);
+static void *uj_BC_KPRI(HANDLER_SIGNATURE);
+static void *uj_BC_KNIL(HANDLER_SIGNATURE);
 static void *uj_BC_GGET(HANDLER_SIGNATURE);
 static void *uj_BC_CALL(HANDLER_SIGNATURE);
 static void *uj_BC_RET0(HANDLER_SIGNATURE);
@@ -111,12 +117,12 @@ static const bc_handler dispatch[] = {
 	uj_BC_MOD, /* 0x18 MOD */
 	uj_BC_POW, /* 0x19 POW */
 	uj_BC_NYI, /* 0x1a CAT */
-	uj_BC_NYI, /* 0x1b KSTR */
-	uj_BC_NYI, /* 0x1c KCDATA */
+	uj_BC_KSTR, /* 0x1b KSTR */
+	uj_BC_KCDATA, /* 0x1c KCDATA */
 	uj_BC_KSHORT, /* 0x1d KSHORT */
 	uj_BC_KNUM, /* 0x1e KNUM */
-	uj_BC_NYI, /* 0x1f KPRI */
-	uj_BC_NYI, /* 0x20 KNIL */
+	uj_BC_KPRI, /* 0x1f KPRI */
+	uj_BC_KNIL, /* 0x20 KNIL */
 	uj_BC_NYI, /* 0x21 UGET */
 	uj_BC_NYI, /* 0x22 USETV */
 	uj_BC_NYI, /* 0x23 USETS */
@@ -353,6 +359,26 @@ static void *uj_BC_POW(HANDLER_SIGNATURE)
 	DISPATCH();
 }
 
+static void *uj_BC_KSTR(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	GCstr *str = (GCstr *)vm_kbase_gco(vmf->kbase, vm_raw_rd(ins));
+
+	setstrV(vmf->L, dst, str);
+
+	DISPATCH();
+}
+
+static void *uj_BC_KCDATA(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	GCcdata *cdata = (GCcdata *)vm_kbase_gco(vmf->kbase, vm_raw_rd(ins));
+
+	setcdataV(vmf->L, dst, cdata);
+
+	DISPATCH();
+}
+
 static void *uj_BC_KSHORT(HANDLER_SIGNATURE)
 {
 	TValue *dst = vm_slot_ra(base, ins);
@@ -373,10 +399,31 @@ static void *uj_BC_KNUM(HANDLER_SIGNATURE)
 	DISPATCH();
 }
 
+static void *uj_BC_KPRI(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	uint32_t tag = ~vm_raw_rd(ins);
+
+	settag(dst, tag);
+
+	DISPATCH();
+}
+
+static void *uj_BC_KNIL(HANDLER_SIGNATURE)
+{
+	TValue *begin = vm_slot_ra(base, ins);
+	TValue *end = vm_slot_rd(base, ins);
+
+	for (; begin <= end; begin++)
+		setnilV(begin);
+
+	DISPATCH();
+}
+
 static void *uj_BC_GGET(HANDLER_SIGNATURE)
 {
 	GCtab *tab = base2func(base).l.env;
-	GCstr *str = (GCstr *)*((GCobj **)vmf->kbase + (int16_t)~(uint16_t)vm_raw_rd(ins)); /* FIXME */
+	GCstr *str = (GCstr *)vm_kbase_gco(vmf->kbase, vm_raw_rd(ins));
 	Node *n = &(tab->node[tab->hmask & str->hash]);
 
 	do {
