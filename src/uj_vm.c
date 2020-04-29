@@ -14,8 +14,11 @@
 #include "lj_bc.h"
 #include "lj_bcins.h"
 #include "lj_frame.h"
+#include "lj_gc.h"
 #include "lj_obj.h"
+#include "lj_tab.h"
 #include "uj_lib.h"
+#include "uj_meta.h"
 
 #define vm_assert(x) ((x)? (void)0 : abort())
 
@@ -68,13 +71,16 @@ typedef void *(* bc_handler)(BCIns *, TValue *, struct vm_frame *, BCIns);
 
 static void *uj_BC_NYI(HANDLER_SIGNATURE);
 static void *uj_BC_MOV(HANDLER_SIGNATURE);
+static void *uj_BC_NOT(HANDLER_SIGNATURE);
 static void *uj_BC_UNM(HANDLER_SIGNATURE);
+static void *uj_BC_LEN(HANDLER_SIGNATURE);
 static void *uj_BC_ADD(HANDLER_SIGNATURE);
 static void *uj_BC_SUB(HANDLER_SIGNATURE);
 static void *uj_BC_MUL(HANDLER_SIGNATURE);
 static void *uj_BC_DIV(HANDLER_SIGNATURE);
 static void *uj_BC_MOD(HANDLER_SIGNATURE);
 static void *uj_BC_POW(HANDLER_SIGNATURE);
+static void *uj_BC_CAT(HANDLER_SIGNATURE);
 static void *uj_BC_KSTR(HANDLER_SIGNATURE);
 static void *uj_BC_KCDATA(HANDLER_SIGNATURE);
 static void *uj_BC_KSHORT(HANDLER_SIGNATURE);
@@ -107,16 +113,16 @@ static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x0e IST */
 	uj_BC_NYI, /* 0x0f ISF */
 	uj_BC_MOV, /* 0x10 MOV */
-	uj_BC_NYI, /* 0x11 NOT */
+	uj_BC_NOT, /* 0x11 NOT */
 	uj_BC_UNM, /* 0x12 UNM */
-	uj_BC_NYI, /* 0x13 LEN */
+	uj_BC_LEN, /* 0x13 LEN */
 	uj_BC_ADD, /* 0x14 ADD */
 	uj_BC_SUB, /* 0x15 SUB */
 	uj_BC_MUL, /* 0x16 MUL */
 	uj_BC_DIV, /* 0x17 DIV */
 	uj_BC_MOD, /* 0x18 MOD */
 	uj_BC_POW, /* 0x19 POW */
-	uj_BC_NYI, /* 0x1a CAT */
+	uj_BC_CAT, /* 0x1a CAT */
 	uj_BC_KSTR, /* 0x1b KSTR */
 	uj_BC_KCDATA, /* 0x1c KCDATA */
 	uj_BC_KSHORT, /* 0x1d KSHORT */
@@ -250,6 +256,16 @@ static void *uj_BC_MOV(HANDLER_SIGNATURE)
 	DISPATCH();
 }
 
+static void *uj_BC_NOT(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *op1 = vm_slot_rd(base, ins);
+
+	setboolV(dst, !tvistruecond(op1));
+
+	DISPATCH();
+}
+
 static void *uj_BC_UNM(HANDLER_SIGNATURE)
 {
 	TValue *dst = vm_slot_ra(base, ins);
@@ -262,6 +278,42 @@ static void *uj_BC_UNM(HANDLER_SIGNATURE)
 	setnumV(dst, -numV(op1));
 
 	DISPATCH();
+}
+
+static void *uj_BC_LEN(HANDLER_SIGNATURE)
+{
+UJ_PEDANTIC_OFF
+
+	static void *objlen[] = {
+		[~LJ_TSTR] = &&gcstrlen,
+		[~LJ_TTAB] = &&gctablen,
+	};
+
+	/*
+	 * XXX Fragile: Since metacall is not yet implemented we
+	 * are free to obtain guest slots pointer at the begining.
+	 * However metamethod can trigger guest stack reallocation
+	 * that invalidates dst and obj values.
+	 */
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *obj = vm_slot_rd(base, ins);
+
+
+	if (LJ_UNLIKELY(!tvisstr(obj) && !tvistab(obj))) {
+		vm_assert(0); /* FIXME: Implement metacall */
+	}
+
+	goto *objlen[~gettag(obj)];
+
+gcstrlen:
+	setnumV(dst, strV(obj)->len);
+	DISPATCH();
+
+gctablen:
+	setnumV(dst, lj_tab_len(tabV(obj)));
+	DISPATCH();
+
+UJ_PEDANTIC_ON
 }
 
 static void *uj_BC_ADD(HANDLER_SIGNATURE)
@@ -356,6 +408,29 @@ static void *uj_BC_POW(HANDLER_SIGNATURE)
 	}
 
 	setnumV(dst, uj_vm_pow(numV(op1), numV(op2)));
+	DISPATCH();
+}
+
+static void *uj_BC_CAT(HANDLER_SIGNATURE)
+{
+	/*
+	 * XXX Fragile: Since metacall is not yet implemented we
+	 * are free to obtain guest slots pointer at the begining.
+	 * However metamethod can trigger guest stack reallocation
+	 * that invalidates dst and obj values.
+	 */
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *bottom = vm_slot_rb(base, ins);
+	TValue *top = vm_slot_rc(base, ins);
+
+	if (uj_meta_cat(vmf->L, bottom, top)) {
+		vm_assert(0); /* FIXME: Implement metacall */
+	}
+
+	lj_gc_check_fixtop(vmf->L);
+
+	*dst = *bottom;
+
 	DISPATCH();
 }
 

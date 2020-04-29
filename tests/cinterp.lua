@@ -162,6 +162,33 @@ local ktest = function()
 	local knil, ktrue, kfalse, knil1, knil2, knil3 = nil, false, true
 end
 
+
+-- 0001    HOTCNT
+-- 0002    KPRI     0   0
+-- 0003    NOT      1   0
+-- 0004    NOT      2   1
+-- 0005    KSTR     3   0      ; "imun"
+-- 0006    LEN      3   3
+-- 0007    GGET     4   1      ; "_G"
+-- 0008    LEN      4   4
+-- 0009    KSTR     5   2      ; "c"
+-- 0010    KSTR     6   3      ; "a"
+-- 0011    KSTR     7   4      ; "t"
+-- 0012    CAT      5   5   7
+-- 0013    RET0     0   1
+
+local misctest = function()
+	local notobj = nil
+	local notfalse = not notobj
+	local nottrue = not notfalse
+	local strlen = #'imun'
+	-- FIXME: we can't create a table within cinterpcall and can't load
+	-- an upvalue for now. We even can't spoil _G a bit to change its
+	-- length for test! OK, bet everything on zero.
+	local tablen = #_G
+	local cat = 'c' .. 'a' ..'t'
+end
+
 local cinterpcall = ujit.debug.cinterpcall
 assert(type(cinterpcall) == "function")
 
@@ -173,5 +200,6 @@ cinterpcall(loop05, 0)
 cinterpcall(loop06, 0)
 cinterpcall(loop07, 0)
 cinterpcall(ktest, 0)
+cinterpcall(misctest, 0)
 
 print("Canary alive")
