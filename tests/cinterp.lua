@@ -189,6 +189,10 @@ local misctest = function()
 	local cat = 'c' .. 'a' ..'t'
 end
 
+local cfunc = function ()
+	print("Canary alive?")
+end
+
 local cinterpcall = ujit.debug.cinterpcall
 assert(type(cinterpcall) == "function")
 
@@ -201,5 +205,6 @@ cinterpcall(loop06, 0)
 cinterpcall(loop07, 0)
 cinterpcall(ktest, 0)
 cinterpcall(misctest, 0)
+cinterpcall(cfunc, 0)
 
-print("Canary alive")
+print("Canary alive!")

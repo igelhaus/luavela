@@ -69,6 +69,14 @@ typedef void *(* bc_handler)(BCIns *, TValue *, struct vm_frame *, BCIns);
 #define DISPATCH() \
 	return vm_next(pc, base, vmf)
 
+/* These ones piggyback nargs1 from CALL* to the prologue */
+
+#define vm_next_call(pc, base, vmf, ins) \
+	(dispatch[bc_op(*(pc))])((pc) + 1, (base), (vmf), *(pc) | ((ins) & 0x00ff0000))
+
+#define DISPATCH_CALL() \
+	return vm_next_call(pc, base, vmf, ins)
+
 static void *uj_BC_NYI(HANDLER_SIGNATURE);
 static void *uj_BC_MOV(HANDLER_SIGNATURE);
 static void *uj_BC_NOT(HANDLER_SIGNATURE);
@@ -91,6 +99,7 @@ static void *uj_BC_GGET(HANDLER_SIGNATURE);
 static void *uj_BC_CALL(HANDLER_SIGNATURE);
 static void *uj_BC_RET0(HANDLER_SIGNATURE);
 static void *uj_BC_IFUNCF(HANDLER_SIGNATURE);
+static void *uj_BC_FUNCC(HANDLER_SIGNATURE);
 static void *uj_BC_HOTCNT(HANDLER_SIGNATURE);
 static void *uj_BC_FORI(HANDLER_SIGNATURE);
 static void *uj_BC_FORL(HANDLER_SIGNATURE);
@@ -182,7 +191,7 @@ static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x53 FUNCV */
 	uj_BC_NYI, /* 0x54 IFUNCV */
 	uj_BC_NYI, /* 0x55 JFUNCV */
-	uj_BC_NYI, /* 0x56 FUNCC */
+	uj_BC_FUNCC, /* 0x56 FUNCC */
 	uj_BC_NYI, /* 0x57 FUNCCW */
 };
 
@@ -533,7 +542,7 @@ static void *uj_BC_CALL(HANDLER_SIGNATURE)
 	fn->fr.tp.pcr = pc;
 	pc = ((GCfuncL *)fn->gcr)->pc;
 
-	DISPATCH();
+	DISPATCH_CALL();
 }
 
 static void *uj_BC_HOTCNT(HANDLER_SIGNATURE)
@@ -644,12 +653,63 @@ static void *uj_BC_IFUNCF(HANDLER_SIGNATURE)
 	DISPATCH();
 }
 
+static LJ_AINLINE void vm_copy_slots(TValue *dst, const TValue *src, size_t n)
+{
+	while (n) {
+		*dst++ = *src++;
+		n--;
+	}
+}
+
+static LJ_AINLINE void vm_nil_slots(TValue *dst, size_t n)
+{
+	while (n)
+		setnilV(dst + --n);
+}
+
+static void *uj_BC_FUNCC(HANDLER_SIGNATURE)
+{
+	lua_State *L;
+	uint8_t got_nres;
+	uint8_t exp_nres;
+
+	/* NYI: set_vmstate_lfunc */
+	/* NYI: grow stack */
+
+	L = vmf->L;
+	L->base = base;
+	L->top = base + vm_raw_rd(ins) - 1;
+	got_nres = (uint8_t)(((base - 1)->fr.func)->fn.c.f(L));
+	base = L->base;
+
+	/* NYI: Return from C to C */
+
+	pc = (base - 1)->fr.tp.pcr; /* restore_PC */
+	exp_nres = *((uint8_t *)pc - 1); /* PC_RB, in fact nres + 1 */
+
+	if (!exp_nres--) {
+		vm_assert(0); /* NYI: MULTRES */
+	} else {
+		if (got_nres)
+			vm_copy_slots(base - 1, L->top - got_nres, got_nres);
+		if (exp_nres > got_nres)
+			vm_nil_slots(base + got_nres, exp_nres - got_nres);
+	}
+
+	base -= (int8_t)((*((uint8_t *)pc - 3) >> 1) + 1); /* restore_base */
+	vmf->kbase = pc2proto(((base - 1)->fr.func)->fn.l.pc)->k; /* setup_kbase */
+	/* NYI: set_vmstate_lfunc */
+	/* NYI: checktimeout */
+
+	DISPATCH();
+}
+
 /* RET0 rbase lit */
 static void *uj_BC_RET0(HANDLER_SIGNATURE)
 {
 	/* NYI: set_vmstate INTERP */
 
-	pc = (base - 1)->fr.tp.pcr; /* Restore caller's pc */
+	pc = (base - 1)->fr.tp.pcr; /* restore_PC */
 
 	if ((((uintptr_t)pc) & FRAME_TYPE)) {
 		/* Not returning to a fixarg Lua func? */
@@ -663,12 +723,8 @@ static void *uj_BC_RET0(HANDLER_SIGNATURE)
 	for (ptrdiff_t i = -1; i <= (ptrdiff_t)vm_raw_rb(*(pc - 1)) - 2; i++)
 		setnilV(base + i);
 
-	/* Restore base: */
-	base -= ((ptrdiff_t)vm_index_ra(*(pc - 1)) + 1);
-
-	/* Setup kbase: */
-	vmf->kbase = pc2proto(((base - 1)->fr.func)->fn.l.pc)->k;
-
+	base -= (int8_t)((*((uint8_t *)pc - 3) >> 1) + 1); /* restore_base */
+	vmf->kbase = pc2proto(((base - 1)->fr.func)->fn.l.pc)->k; /* setup_kbase */
 	/* NYI: set_vmstate_lfunc */
 	/* NYI: checktimeout */
 
