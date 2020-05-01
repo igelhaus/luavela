@@ -145,18 +145,16 @@ end
 
 -- 0001    HOTCNT
 -- 0002    KSTR     0   0      ; "imun"
--- 0003    KCDATA   1   1
--- 0004    KSHORT   2   0
--- 0005    KNUM     3   0      ; 3.1415926
--- 0006    KPRI     4   0
--- 0007    KPRI     5   1
--- 0008    KPRI     6   2
--- 0009    KNIL     7   9
--- 0010    RET0     0   1
+-- 0003    KSHORT   1   0
+-- 0004    KNUM     2   0      ; 3.1415926
+-- 0005    KPRI     3   0
+-- 0006    KPRI     4   1
+-- 0007    KPRI     5   2
+-- 0008    KNIL     6   8
+-- 0009    RET0     0   1
 
 local ktest = function()
 	local kstr = 'imun'
-	local kcdata = -1ULL
 	local kshort = 0
 	local knum = 3.1415926
 	local knil, ktrue, kfalse, knil1, knil2, knil3 = nil, false, true
@@ -208,3 +206,18 @@ cinterpcall(misctest, 0)
 cinterpcall(cfunc, 0)
 
 print("Canary alive!")
+
+if (pcall(require, 'ffi')) then
+	loadstring([[
+		-- 0001    HOTCNT
+		-- 0002    KCDATA   0   0
+		-- 0003    RET0     0   1
+		local kcdata_test = function()
+			local kcdata = -1ULL
+		end
+
+		ujit.debug.cinterpcall(kcdata_test, 0)
+
+		print("Canary alive! (FFI)")
+	]])()
+end
