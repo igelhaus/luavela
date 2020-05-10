@@ -191,19 +191,32 @@ local cfunc = function ()
 	print("Canary alive?")
 end
 
+function globalfn01(x, y) -- Please keep global
+	print("x = ", x, "y = ", y)
+end
+
+function globalfn02(x) -- Please keep global
+	return globalfn01(x, "bar")
+end
+
+local taillcall01 = function ()
+	globalfn02("foo")
+end
+
 local cinterpcall = ujit.debug.cinterpcall
 assert(type(cinterpcall) == "function")
 
-cinterpcall(loop01, 0)
-cinterpcall(loop02, 0)
-cinterpcall(loop03, 0)
-cinterpcall(loop04, 0)
-cinterpcall(loop05, 0)
-cinterpcall(loop06, 0)
-cinterpcall(loop07, 0)
-cinterpcall(ktest, 0)
-cinterpcall(misctest, 0)
-cinterpcall(cfunc, 0)
+cinterpcall(loop01)
+cinterpcall(loop02)
+cinterpcall(loop03)
+cinterpcall(loop04)
+cinterpcall(loop05)
+cinterpcall(loop06)
+cinterpcall(loop07)
+cinterpcall(ktest)
+cinterpcall(misctest)
+cinterpcall(cfunc)
+cinterpcall(taillcall01)
 
 print("Canary alive!")
 
@@ -216,7 +229,7 @@ if (pcall(require, 'ffi')) then
 			local kcdata = -1ULL
 		end
 
-		ujit.debug.cinterpcall(kcdata_test, 0)
+		ujit.debug.cinterpcall(kcdata_test)
 
 		print("Canary alive! (FFI)")
 	]])()
