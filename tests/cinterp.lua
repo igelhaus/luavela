@@ -187,20 +187,70 @@ local misctest = function()
 	local cat = 'c' .. 'a' ..'t'
 end
 
+-- 0001    HOTCNT
+-- 0002    GGET     0   0      ; "print"
+-- 0003    KSTR     1   1      ; "Canary alive?"
+-- 0004    CALL     0   1   2
+-- 0005    RET0     0   1
+
 local cfunc = function ()
 	print("Canary alive?")
 end
+
+-- 0001    HOTCNT
+-- 0002    GGET     2   0      ; "print"
+-- 0003    KSTR     3   1      ; "x = "
+-- 0004    MOV      4   0
+-- 0005    KSTR     5   2      ; "y = "
+-- 0006    MOV      6   1
+-- 0007    CALL     2   1   5
+-- 0008    RET0     0   1
 
 function globalfn01(x, y) -- Please keep global
 	print("x = ", x, "y = ", y)
 end
 
+-- 0001    HOTCNT
+-- 0002    GGET     1   0      ; "globalfn01"
+-- 0003    MOV      2   0
+-- 0004    KSTR     3   1      ; "bar"
+-- 0005    CALLT    1   3
+
 function globalfn02(x) -- Please keep global
 	return globalfn01(x, "bar")
 end
 
+-- 0001    HOTCNT
+-- 0002    GGET     0   0      ; "globalfn02"
+-- 0003    KSTR     1   1      ; "foo"
+-- 0004    CALL     0   1   2
+-- 0005    RET0     0   1
+
 local taillcall01 = function ()
 	globalfn02("foo")
+end
+
+-- 0001    HOTCNT
+-- 0002    RET1     0   2
+
+function globalfn03(x) -- Please keep global
+	return x
+end
+
+-- 0001    HOTCNT
+-- 0002    GGET     3   0      ; "globalfn03"
+-- 0003    MOV      4   1
+-- 0004    CALL     3   4   2
+-- 0005    GGET     6   1      ; "print"
+-- 0006    MOV      7   3
+-- 0007    MOV      8   4
+-- 0008    MOV      9   5
+-- 0009    CALL     6   1   4
+-- 0010    RET0     0   1
+
+local ret1 = function(x, y, z)
+	local a, b, c = globalfn03(y)
+	print(a, b, c)
 end
 
 local cinterpcall = ujit.debug.cinterpcall
@@ -217,6 +267,12 @@ cinterpcall(ktest)
 cinterpcall(misctest)
 cinterpcall(cfunc)
 cinterpcall(taillcall01)
+cinterpcall(ret1, "FAIL1", "OK", "FAIL2")
+
+local rv
+rv = cinterpcall(function(x, y) return y .. " world!" end,
+		 "Goodbye, cruel", "Hello,")
+assert(rv == "Hello, world!")
 
 print("Canary alive!")
 

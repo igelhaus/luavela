@@ -98,6 +98,7 @@ static void *uj_BC_GGET(HANDLER_SIGNATURE);
 static void *uj_BC_CALL(HANDLER_SIGNATURE);
 static void *uj_BC_CALLT(HANDLER_SIGNATURE);
 static void *uj_BC_RET0(HANDLER_SIGNATURE);
+static void *uj_BC_RET1(HANDLER_SIGNATURE);
 static void *uj_BC_IFUNCF(HANDLER_SIGNATURE);
 static void *uj_BC_FUNCC(HANDLER_SIGNATURE);
 static void *uj_BC_HOTCNT(HANDLER_SIGNATURE);
@@ -167,7 +168,7 @@ static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x3b RETM */
 	uj_BC_NYI, /* 0x3c RET */
 	uj_BC_RET0, /* 0x3d RET0 */
-	uj_BC_NYI, /* 0x3e RET1 */
+	uj_BC_RET1, /* 0x3e RET1 */
 	uj_BC_HOTCNT, /* 0x3f HOTCNT */
 	uj_BC_NYI, /* 0x40 COVERG */
 	uj_BC_FORI, /* 0x41 FORI */
@@ -744,6 +745,34 @@ static void *uj_BC_RET0(HANDLER_SIGNATURE)
 
 	/* Clear missing return values. */
 	vm_nil_slots(base - 1, vm_raw_rb(*(pc - 1)) - 1);
+
+	base -= (int8_t)((*((uint8_t *)pc - 3) >> 1) + 1); /* restore_base */
+	vmf->kbase = pc2proto(((base - 1)->fr.func)->fn.l.pc)->k; /* setup_kbase */
+	/* NYI: set_vmstate_lfunc */
+	/* NYI: checktimeout */
+
+	DISPATCH();
+}
+
+/* RET1 rbase lit */
+static void *uj_BC_RET1(HANDLER_SIGNATURE)
+{
+	/* NYI: set_vmstate INTERP */
+
+	pc = (base - 1)->fr.tp.pcr; /* restore_PC */
+
+	if ((((uintptr_t)pc) & FRAME_TYPE)) {
+		/* Not returning to a fixarg Lua func? */
+		if ((((uintptr_t)pc - FRAME_VARG) & FRAME_TYPEP))
+			return vm_return(HANDLER_ARGUMENTS);
+		else
+			vm_assert(0); /* NYI: Return from vararg function: relocate BASE down and RA up. */
+	}
+
+	*(base - 1) = *(vm_slot_ra(base, ins));
+
+	/* Clear missing return values. */
+	vm_nil_slots(base, vm_raw_rb(*(pc - 1)) - 2);
 
 	base -= (int8_t)((*((uint8_t *)pc - 3) >> 1) + 1); /* restore_base */
 	vmf->kbase = pc2proto(((base - 1)->fr.func)->fn.l.pc)->k; /* setup_kbase */
