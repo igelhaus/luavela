@@ -8,6 +8,6 @@
 
 struct lua_State;
 
-void uj_vm_call(lua_State *L, int nargs, int nres);
+int uj_vm_call(lua_State *L);
 
 #endif /* !_UJ_VM_H */

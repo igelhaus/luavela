@@ -48,8 +48,7 @@
 
 struct vm_frame {
 	lua_State *L;
-	int64_t nargs;
-	int64_t nres1;
+	uint64_t nres1;
 	void *kbase;
 };
 
@@ -97,6 +96,7 @@ static void *uj_BC_KPRI(HANDLER_SIGNATURE);
 static void *uj_BC_KNIL(HANDLER_SIGNATURE);
 static void *uj_BC_GGET(HANDLER_SIGNATURE);
 static void *uj_BC_CALL(HANDLER_SIGNATURE);
+static void *uj_BC_CALLT(HANDLER_SIGNATURE);
 static void *uj_BC_RET0(HANDLER_SIGNATURE);
 static void *uj_BC_IFUNCF(HANDLER_SIGNATURE);
 static void *uj_BC_FUNCC(HANDLER_SIGNATURE);
@@ -159,7 +159,7 @@ static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x33 CALLM */
 	uj_BC_CALL, /* 0x34 CALL */
 	uj_BC_NYI, /* 0x35 CALLMT */
-	uj_BC_NYI, /* 0x36 CALLT */
+	uj_BC_CALLT, /* 0x36 CALLT */
 	uj_BC_NYI, /* 0x37 ITERC */
 	uj_BC_NYI, /* 0x38 ITERN */
 	uj_BC_NYI, /* 0x39 VARG */
@@ -195,43 +195,54 @@ static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x57 FUNCCW */
 };
 
-void uj_vm_call(lua_State *L, int nargs, int nres)
+static LJ_AINLINE void vm_copy_slots(TValue *dst, const TValue *src, size_t n)
+{
+	while (n) {
+		*dst++ = *src++;
+		n--;
+	}
+}
+
+static LJ_AINLINE void vm_nil_slots(TValue *dst, size_t n)
+{
+	while (n)
+		setnilV(dst + --n);
+}
+
+int uj_vm_call(lua_State *L)
 {
 	const GCfunc *fn;
-	const GCproto *pt;
 	struct vm_frame vmf = {0};
+	uint8_t nargs1 = (uint8_t)(L->top - L->base);
 
 	fn = uj_lib_checkfunc(L, 1);
-
 	vm_assert(isluafunc(fn));
-	pt = funcproto(fn);
 
 	vmf.L = L;
-	vmf.nargs = nargs;
-	vmf.nres1 = nres + 1;
-	/* NB! kbase will be set up in the prologue */
 
-	L->base->fr.tp.ftsz = (int64_t)(FRAME_C | sizeof(TValue));
+	L->base->fr.tp.ftsz = (int64_t)(FRAME_C | sizeof(*(L->base)));
 
-	vm_next(proto_bc(pt), L->base + 1, &vmf);
+	vm_next_call(proto_bc(funcproto(fn)), L->base + 1, &vmf, nargs1 << 16);
+
+	return (int)(L->top - L->base);
 }
 
 static void *vm_return(HANDLER_SIGNATURE)
 {
-	int8_t ra = vm_index_ra(ins);
-	int8_t rd = vm_raw_rd(ins);
+	uint8_t nres1 = vm_raw_rd(ins);
 	lua_State *L = vmf->L;
 
-	for (ptrdiff_t i = -1; i < (ptrdiff_t)rd - 2; i++)
-		*(base + i) = *(base + i + ra + 1);
+	vm_copy_slots(base - 1, vm_slot_ra(base, ins), nres1 - 1);
 
-	if (vmf->nres1 == 0 || vmf->nres1 > rd) { /* 0 == LUA_MULTRET + 1 */
+	if (vmf->nres1 == 0) {
+		/* 0 == LUA_MULTRET + 1 */
+
+		/* Set stack top: */
+		L->top = base + nres1 - 2;
+	} else if (vmf->nres1 > nres1) {
 		/* NYI: More results wanted. Check stack size and fill up results with nil. */
 		vm_assert(0);
 	}
-
-	/* Set stack top: */
-	L->top = base + vmf->nres1 - 2;
 
 	/* Set stack base: */
 	L->base = (TValue *)((char *)base - ((uint64_t)(uintptr_t)pc & (uint64_t)(-8)));
@@ -545,6 +556,32 @@ static void *uj_BC_CALL(HANDLER_SIGNATURE)
 	DISPATCH_CALL();
 }
 
+static void *uj_BC_CALLT(HANDLER_SIGNATURE)
+{
+	TValue *slot_ra = vm_slot_ra(base, ins);
+	GCfunc *fn = (GCfunc *)slot_ra->gcr;
+	uint8_t nargs1 = vm_raw_rd(ins);
+
+	/* NYI: set_vmstate INTERP */
+
+	if (LJ_UNLIKELY(!tvisfunc(slot_ra)))
+		vm_assert(0); /* NYI: metacall */
+
+	pc = (base - 1)->fr.tp.pcr; /* restore_PC */
+
+	if ((((uintptr_t)pc) & FRAME_TYPE)) {
+		vm_assert(0); /* NYI: Tailcall from vararg function */
+	}
+
+	vm_assert(!isffunc(fn)); /* NYI: Tailcall into a fast function */
+
+	vm_copy_slots(base, slot_ra + 1, nargs1 - 1);
+	(base - 1)->gcr = (GCobj *)fn;
+	pc = fn->l.pc;
+
+	DISPATCH_CALL();
+}
+
 static void *uj_BC_HOTCNT(HANDLER_SIGNATURE)
 {
 	/* NYI: Payload */
@@ -647,24 +684,10 @@ static void *uj_BC_IFUNCF(HANDLER_SIGNATURE)
 	/* NYI: checktimeout */
 
 	/* Clear missing parameters */
-	for (ptrdiff_t i = vmf->nargs; i < pc2proto(pc - 1)->numparams; i++)
+	for (ptrdiff_t i = vm_raw_rd(ins) - 1; i < pc2proto(pc - 1)->numparams; i++)
 		setnilV(base + i);
 
 	DISPATCH();
-}
-
-static LJ_AINLINE void vm_copy_slots(TValue *dst, const TValue *src, size_t n)
-{
-	while (n) {
-		*dst++ = *src++;
-		n--;
-	}
-}
-
-static LJ_AINLINE void vm_nil_slots(TValue *dst, size_t n)
-{
-	while (n)
-		setnilV(dst + --n);
 }
 
 static void *uj_BC_FUNCC(HANDLER_SIGNATURE)
@@ -720,8 +743,7 @@ static void *uj_BC_RET0(HANDLER_SIGNATURE)
 	}
 
 	/* Clear missing return values. */
-	for (ptrdiff_t i = -1; i <= (ptrdiff_t)vm_raw_rb(*(pc - 1)) - 2; i++)
-		setnilV(base + i);
+	vm_nil_slots(base - 1, vm_raw_rb(*(pc - 1)) - 1);
 
 	base -= (int8_t)((*((uint8_t *)pc - 3) >> 1) + 1); /* restore_base */
 	vmf->kbase = pc2proto(((base - 1)->fr.func)->fn.l.pc)->k; /* setup_kbase */
