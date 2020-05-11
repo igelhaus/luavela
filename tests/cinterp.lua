@@ -253,6 +253,36 @@ local ret1 = function(x, y, z)
 	print(a, b, c)
 end
 
+
+-- 0001    HOTCNT
+-- 0002    KPRI     0   0
+-- 0003    FNEW     1   0      ; tests/cinterp.lua:276
+-- 0004    MOV      2   1
+-- 0005    KSHORT   3   0
+-- 0006    CALL     2   1   2
+-- 0007    UCLO     0 => 0008
+-- 0008    RET0     0   1
+
+local utest = function()
+	local upval = nil
+
+	-- 0001    HOTCNT
+	-- 0002    UGET     1   0      ; upval
+	-- 0003    USETV    0   0      ; upval
+	-- 0004    USETS    0   0      ; upval ; "imun"
+	-- 0005    USETN    0   0      ; upval ; 9
+	-- 0006    USETP    0   0      ; upval
+	-- 0007    RET0     0   1
+	local fnew = function(arg)
+		local lcval = upval
+		upval = arg
+		upval = 'imun'
+		upval = 9
+		upval = nil
+	end
+	fnew(0)
+end
+
 local cinterpcall = ujit.debug.cinterpcall
 assert(type(cinterpcall) == "function")
 
@@ -268,6 +298,7 @@ cinterpcall(misctest)
 cinterpcall(cfunc)
 cinterpcall(taillcall01)
 cinterpcall(ret1, "FAIL1", "OK", "FAIL2")
+cinterpcall(utest)
 
 local rv
 rv = cinterpcall(function(x, y) return y .. " world!" end,
