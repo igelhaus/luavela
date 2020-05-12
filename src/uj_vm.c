@@ -17,8 +17,10 @@
 #include "lj_gc.h"
 #include "lj_obj.h"
 #include "lj_tab.h"
+#include "uj_func.h"
 #include "uj_lib.h"
 #include "uj_meta.h"
+#include "uj_upval.h"
 
 #define vm_assert(x) ((x)? (void)0 : abort())
 
@@ -28,6 +30,8 @@
 #define vm_raw_rb(ins) ((ins) >> 24)
 #define vm_raw_rc(ins) (((ins) >> 16) & 0xff)
 #define vm_raw_rd(ins) (((ins) >> 16))
+/* XXX: Jump targets are not x2-encoded, use the raw bc register value */
+#define vm_rj(ins) ((ptrdiff_t)vm_raw_rd(ins) - BCBIAS_J)
 
 #define vm_index_ra(ins) (vm_raw_ra(ins) >> 1)
 
@@ -44,6 +48,7 @@
 
 /* FIXME: Apply base2func everywhere */
 #define base2func(base) ((((base) - 1)->fr.func)->fn)
+#define vm_base_upval(base, uvindex) (base2func(base).l.uvptr[uvindex])
 #define pc2proto(pc) ((const GCproto *)(pc) - 1)
 
 struct vm_frame {
@@ -94,6 +99,13 @@ static void *uj_BC_KSHORT(HANDLER_SIGNATURE);
 static void *uj_BC_KNUM(HANDLER_SIGNATURE);
 static void *uj_BC_KPRI(HANDLER_SIGNATURE);
 static void *uj_BC_KNIL(HANDLER_SIGNATURE);
+static void *uj_BC_UGET(HANDLER_SIGNATURE);
+static void *uj_BC_USETV(HANDLER_SIGNATURE);
+static void *uj_BC_USETS(HANDLER_SIGNATURE);
+static void *uj_BC_USETN(HANDLER_SIGNATURE);
+static void *uj_BC_USETP(HANDLER_SIGNATURE);
+static void *uj_BC_UCLO(HANDLER_SIGNATURE);
+static void *uj_BC_FNEW(HANDLER_SIGNATURE);
 static void *uj_BC_GGET(HANDLER_SIGNATURE);
 static void *uj_BC_CALL(HANDLER_SIGNATURE);
 static void *uj_BC_CALLT(HANDLER_SIGNATURE);
@@ -139,13 +151,13 @@ static const bc_handler dispatch[] = {
 	uj_BC_KNUM, /* 0x1e KNUM */
 	uj_BC_KPRI, /* 0x1f KPRI */
 	uj_BC_KNIL, /* 0x20 KNIL */
-	uj_BC_NYI, /* 0x21 UGET */
-	uj_BC_NYI, /* 0x22 USETV */
-	uj_BC_NYI, /* 0x23 USETS */
-	uj_BC_NYI, /* 0x24 USETN */
-	uj_BC_NYI, /* 0x25 USETP */
-	uj_BC_NYI, /* 0x26 UCLO */
-	uj_BC_NYI, /* 0x27 FNEW */
+	uj_BC_UGET, /* 0x21 UGET */
+	uj_BC_USETV, /* 0x22 USETV */
+	uj_BC_USETS, /* 0x23 USETS */
+	uj_BC_USETN, /* 0x24 USETN */
+	uj_BC_USETP, /* 0x25 USETP */
+	uj_BC_UCLO, /* 0x26 UCLO */
+	uj_BC_FNEW, /* 0x27 FNEW */
 	uj_BC_NYI, /* 0x28 TNEW */
 	uj_BC_NYI, /* 0x29 TDUP */
 	uj_BC_GGET, /* 0x2a GGET */
@@ -512,6 +524,114 @@ static void *uj_BC_KNIL(HANDLER_SIGNATURE)
 
 	for (; begin <= end; begin++)
 		setnilV(begin);
+
+	DISPATCH();
+}
+
+static void *uj_BC_UGET(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	GCupval *uv = vm_base_upval(base, vm_raw_rd(ins));
+
+	*dst = *uvval(uv);
+
+	DISPATCH();
+}
+
+static void *uj_BC_USETV(HANDLER_SIGNATURE)
+{
+	GCupval *uv = vm_base_upval(base, vm_raw_ra(ins));
+	TValue *src = vm_slot_rd(base, ins);
+
+	*uvval(uv) = *src;
+	if (LJ_UNLIKELY(isblack(obj2gco(uv)) && !uv->closed &&
+			tvisgcv(src) && !iswhite(gcval(src))))
+	{
+		/*
+		 * XXX: no L->base and L->top sync is necessary
+		 * since lj_gc_barrieruv doesn't affect Lua stack.
+		 */
+		lj_gc_barrieruv(G(vmf->L), uvval(uv));
+	}
+
+	DISPATCH();
+}
+
+static void *uj_BC_USETS(HANDLER_SIGNATURE)
+{
+	GCupval *uv = vm_base_upval(base, vm_raw_ra(ins));
+	GCstr *str = (GCstr *)vm_kbase_gco(vmf->kbase, vm_raw_rd(ins));
+
+	setstrV(vmf->L, uvval(uv), str);
+	if (LJ_UNLIKELY(isblack(obj2gco(uv)) && !uv->closed &&
+			!iswhite(obj2gco(str))))
+	{
+		/*
+		 * XXX: no L->base and L->top sync is necessary
+		 * since lj_gc_barrieruv doesn't affect Lua stack.
+		 */
+		lj_gc_barrieruv(G(vmf->L), uvval(uv));
+	}
+
+	DISPATCH();
+}
+
+static void *uj_BC_USETN(HANDLER_SIGNATURE)
+{
+	GCupval *uv = vm_base_upval(base, vm_raw_ra(ins));
+	TValue *src = vm_slot_rd(vmf->kbase, ins);
+
+	setnumV(uvval(uv), numV(src));
+
+	DISPATCH();
+}
+
+static void *uj_BC_USETP(HANDLER_SIGNATURE)
+{
+	GCupval *uv = vm_base_upval(base, vm_raw_ra(ins));
+	uint32_t tag = ~vm_raw_rd(ins);
+
+	settag(uvval(uv), tag);
+
+	DISPATCH();
+}
+
+static void *uj_BC_UCLO(HANDLER_SIGNATURE)
+{
+	TValue *level = vm_slot_ra(base, ins);
+
+	pc += vm_rj(ins);
+
+	if (LJ_LIKELY(vmf->L->openupval))
+	{
+		/*
+		 * XXX: no L->base and L->top sync is necessary
+		 * since uj_upval_close doesn't affect Lua stack.
+		 */
+		uj_upval_close(vmf->L, level);
+	}
+
+	DISPATCH();
+}
+
+static void *uj_BC_FNEW(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	GCproto* pt = (GCproto *)vm_kbase_gco(vmf->kbase, vm_raw_rd(ins));
+	GCfuncL *parent = &base2func(base).l;
+
+	/*
+	 * XXX: L->base sync is necessary since FNEW uses it for
+	 * upvalues initialization. L->top sync is made underneath
+	 * via lj_gc_check_fixtop routine.
+	 */
+	vmf->L->base = base;
+
+	setfuncV(vmf->L, dst, uj_func_newL_gc(vmf->L, pt, parent));
+	/*
+	 * XXX: New Lua function creation doesn't trigger guest
+	 * stack reallocation, so base pointer stays valid.
+	 */
 
 	DISPATCH();
 }
