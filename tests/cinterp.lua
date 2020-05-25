@@ -305,6 +305,14 @@ rv = cinterpcall(function(x, y) return y .. " world!" end,
 		 "Goodbye, cruel", "Hello,")
 assert(rv == "Hello, world!")
 
+local t = {}
+rv = cinterpcall(function(x, ...) -- <-- IFUNCV
+	local a, b, c = ...       -- <-- VARG
+	print(x, a, b, c)
+	return b
+end, "Hello from", "var", t, "arg")
+assert(rv == t)
+
 print("Canary alive!")
 
 if (pcall(require, 'ffi')) then

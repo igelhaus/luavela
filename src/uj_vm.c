@@ -54,6 +54,7 @@
 struct vm_frame {
 	lua_State *L;
 	uint64_t nres1;
+	uint64_t multres1;
 	void *kbase;
 };
 
@@ -109,9 +110,11 @@ static void *uj_BC_FNEW(HANDLER_SIGNATURE);
 static void *uj_BC_GGET(HANDLER_SIGNATURE);
 static void *uj_BC_CALL(HANDLER_SIGNATURE);
 static void *uj_BC_CALLT(HANDLER_SIGNATURE);
+static void *uj_BC_VARG(HANDLER_SIGNATURE);
 static void *uj_BC_RET0(HANDLER_SIGNATURE);
 static void *uj_BC_RET1(HANDLER_SIGNATURE);
 static void *uj_BC_IFUNCF(HANDLER_SIGNATURE);
+static void *uj_BC_IFUNCV(HANDLER_SIGNATURE);
 static void *uj_BC_FUNCC(HANDLER_SIGNATURE);
 static void *uj_BC_HOTCNT(HANDLER_SIGNATURE);
 static void *uj_BC_FORI(HANDLER_SIGNATURE);
@@ -175,7 +178,7 @@ static const bc_handler dispatch[] = {
 	uj_BC_CALLT, /* 0x36 CALLT */
 	uj_BC_NYI, /* 0x37 ITERC */
 	uj_BC_NYI, /* 0x38 ITERN */
-	uj_BC_NYI, /* 0x39 VARG */
+	uj_BC_VARG, /* 0x39 VARG */
 	uj_BC_NYI, /* 0x3a ISNEXT */
 	uj_BC_NYI, /* 0x3b RETM */
 	uj_BC_NYI, /* 0x3c RET */
@@ -201,12 +204,17 @@ static const bc_handler dispatch[] = {
 	uj_BC_IFUNCF, /* 0x50 FUNCF */ /* FIXME */
 	uj_BC_IFUNCF, /* 0x51 IFUNCF */
 	uj_BC_NYI, /* 0x52 JFUNCF */
-	uj_BC_NYI, /* 0x53 FUNCV */
-	uj_BC_NYI, /* 0x54 IFUNCV */
+	uj_BC_IFUNCV, /* 0x53 FUNCV */ /* FIXME */
+	uj_BC_IFUNCV, /* 0x54 IFUNCV */
 	uj_BC_NYI, /* 0x55 JFUNCV */
 	uj_BC_FUNCC, /* 0x56 FUNCC */
 	uj_BC_NYI, /* 0x57 FUNCCW */
 };
+
+static LJ_AINLINE uint8_t vm_min_u8(uint8_t x, uint8_t y)
+{
+	return y ^ ((x ^ y) & -(x < y));
+}
 
 static LJ_AINLINE void vm_copy_slots(TValue *dst, const TValue *src, size_t n)
 {
@@ -703,6 +711,28 @@ static void *uj_BC_CALLT(HANDLER_SIGNATURE)
 	DISPATCH_CALL();
 }
 
+static void *uj_BC_VARG(HANDLER_SIGNATURE)
+{
+	TValue *slot_ra = vm_slot_ra(base, ins);
+	TValue *base_varg = (TValue *)((char *)base + FRAME_VARG - (char *)((base - 1)->fr.tp.ftsz)) + vm_raw_rc(ins);
+	uint8_t nres1 = vm_raw_rb(ins);
+	uint8_t nvargs1 = base - base_varg;
+
+	if (nres1 > 0) {
+		uint8_t n = vm_min_u8(nvargs1, nres1) - 1;
+
+		vm_copy_slots(slot_ra, base_varg, n);
+		vm_nil_slots(slot_ra + n, nres1 - n - 1);
+	} else {
+		/* NYI: uj_state_stack_grow */
+
+		vmf->multres1 = nvargs1;
+		vm_copy_slots(slot_ra, base_varg, nvargs1 - 1);
+	}
+
+	DISPATCH();
+}
+
 static void *uj_BC_HOTCNT(HANDLER_SIGNATURE)
 {
 	/* NYI: Payload */
@@ -811,6 +841,32 @@ static void *uj_BC_IFUNCF(HANDLER_SIGNATURE)
 	DISPATCH();
 }
 
+static void *uj_BC_IFUNCV(HANDLER_SIGNATURE)
+{
+	uint8_t nargs1 = vm_raw_rd(ins);
+	TValue *base_new = base + nargs1;
+	uint8_t exp_nargs = pc2proto(pc - 1)->numparams;
+	uint8_t n;
+
+	(base_new - 1)->u64 = (base - 1)->u64;
+	(base_new - 1)->u64_hi = nargs1 * sizeof(TValue) + FRAME_VARG;
+
+	/* NYI: set_vmstate_lfunc */
+	/* NYI: grow stack */
+
+	n = vm_min_u8(nargs1 - 1, exp_nargs);
+	vm_copy_slots(base_new, base, n);
+	vm_nil_slots(base_new + n, exp_nargs - n);
+	vm_nil_slots(base, n);
+
+	base = base_new;
+
+	/* Setup kbase: */
+	vmf->kbase = pc2proto(((base - 1)->fr.func)->fn.l.pc)->k;
+
+	DISPATCH();
+}
+
 static void *uj_BC_FUNCC(HANDLER_SIGNATURE)
 {
 	lua_State *L;
@@ -853,14 +909,17 @@ static void *uj_BC_RET0(HANDLER_SIGNATURE)
 {
 	/* NYI: set_vmstate INTERP */
 
+restore_PC:
 	pc = (base - 1)->fr.tp.pcr; /* restore_PC */
+	vmf->multres1 = vm_raw_rd(ins);
 
 	if ((((uintptr_t)pc) & FRAME_TYPE)) {
 		/* Not returning to a fixarg Lua func? */
 		if ((((uintptr_t)pc - FRAME_VARG) & FRAME_TYPEP))
 			return vm_return(HANDLER_ARGUMENTS);
-		else
-			vm_assert(0); /* NYI: Return from vararg function: relocate BASE down and RA up. */
+
+		base = (TValue *)((char *)base - ((uintptr_t)pc - FRAME_VARG));
+		goto restore_PC;
 	}
 
 	/* Clear missing return values. */
@@ -878,18 +937,23 @@ static void *uj_BC_RET0(HANDLER_SIGNATURE)
 static void *uj_BC_RET1(HANDLER_SIGNATURE)
 {
 	/* NYI: set_vmstate INTERP */
+	TValue *slot_ra = vm_slot_ra(base, ins);
 
+restore_PC:
 	pc = (base - 1)->fr.tp.pcr; /* restore_PC */
+	vmf->multres1 = vm_raw_rd(ins);
 
 	if ((((uintptr_t)pc) & FRAME_TYPE)) {
 		/* Not returning to a fixarg Lua func? */
 		if ((((uintptr_t)pc - FRAME_VARG) & FRAME_TYPEP))
 			return vm_return(HANDLER_ARGUMENTS);
-		else
-			vm_assert(0); /* NYI: Return from vararg function: relocate BASE down and RA up. */
+
+		base = (TValue *)((char *)base - ((uintptr_t)pc - FRAME_VARG));
+		slot_ra = (TValue *)((char *)slot_ra + ((uintptr_t)pc - FRAME_VARG));
+		goto restore_PC;
 	}
 
-	*(base - 1) = *(vm_slot_ra(base, ins));
+	*(base - 1) = *slot_ra;
 
 	/* Clear missing return values. */
 	vm_nil_slots(base, vm_raw_rb(*(pc - 1)) - 2);
