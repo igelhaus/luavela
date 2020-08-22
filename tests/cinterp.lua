@@ -283,6 +283,34 @@ local utest = function()
 	fnew(0)
 end
 
+
+-- 0001    HOTCNT
+-- 0002    KPRI     0   0
+-- 0003    ISTC     1   0
+-- 0004    JMP      1 => 0006
+-- 0005    KSHORT   1   0
+-- 0006    ISFC     2   0
+-- 0007    JMP      2 => 0009
+-- 0008    KSHORT   2   0
+-- 0009    IST          0
+-- 0010    JMP      3 => 0012
+-- 0011    KPRI     0   2
+-- 0012    ISF          0
+-- 0013    JMP      3 => 0015
+-- 0014    KPRI     0   1
+-- 0015    GGET     3   0      ; "print"
+-- <print test result>
+-- 0027    RET0     0   1
+
+local uttest = function()
+	local test
+	local tcopy = test or  0          -- ISTC
+	local fcopy = test and 0          -- ISFC
+	if not test then test = true  end -- IST
+	if     test then test = false end -- ISF
+	print('Unary test and copy:', test or fcopy or tcopy and 'OK' or 'FAIL')
+end
+
 local cinterpcall = ujit.debug.cinterpcall
 assert(type(cinterpcall) == "function")
 
@@ -299,6 +327,7 @@ cinterpcall(cfunc)
 cinterpcall(taillcall01)
 cinterpcall(ret1, "FAIL1", "OK", "FAIL2")
 cinterpcall(utest)
+cinterpcall(uttest)
 
 local rv
 rv = cinterpcall(function(x, y) return y .. " world!" end,
