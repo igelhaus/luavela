@@ -83,6 +83,10 @@ typedef void *(* bc_handler)(BCIns *, TValue *, struct vm_frame *, BCIns);
 	return vm_next_call(pc, base, vmf, ins)
 
 static void *uj_BC_NYI(HANDLER_SIGNATURE);
+static void *uj_BC_ISTC(HANDLER_SIGNATURE);
+static void *uj_BC_ISFC(HANDLER_SIGNATURE);
+static void *uj_BC_IST(HANDLER_SIGNATURE);
+static void *uj_BC_ISF(HANDLER_SIGNATURE);
 static void *uj_BC_MOV(HANDLER_SIGNATURE);
 static void *uj_BC_NOT(HANDLER_SIGNATURE);
 static void *uj_BC_UNM(HANDLER_SIGNATURE);
@@ -113,6 +117,7 @@ static void *uj_BC_CALLT(HANDLER_SIGNATURE);
 static void *uj_BC_VARG(HANDLER_SIGNATURE);
 static void *uj_BC_RET0(HANDLER_SIGNATURE);
 static void *uj_BC_RET1(HANDLER_SIGNATURE);
+static void *uj_BC_JMP(HANDLER_SIGNATURE);
 static void *uj_BC_IFUNCF(HANDLER_SIGNATURE);
 static void *uj_BC_IFUNCV(HANDLER_SIGNATURE);
 static void *uj_BC_FUNCC(HANDLER_SIGNATURE);
@@ -133,10 +138,10 @@ static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x09 ISNEN */
 	uj_BC_NYI, /* 0x0a ISEQP */
 	uj_BC_NYI, /* 0x0b ISNEP */
-	uj_BC_NYI, /* 0x0c ISTC */
-	uj_BC_NYI, /* 0x0d ISFC */
-	uj_BC_NYI, /* 0x0e IST */
-	uj_BC_NYI, /* 0x0f ISF */
+	uj_BC_ISTC, /* 0x0c ISTC */
+	uj_BC_ISFC, /* 0x0d ISFC */
+	uj_BC_IST, /* 0x0e IST */
+	uj_BC_ISF, /* 0x0f ISF */
 	uj_BC_MOV, /* 0x10 MOV */
 	uj_BC_NOT, /* 0x11 NOT */
 	uj_BC_UNM, /* 0x12 UNM */
@@ -200,7 +205,7 @@ static const bc_handler dispatch[] = {
 	uj_BC_NYI, /* 0x4c LOOP */
 	uj_BC_NYI, /* 0x4d ILOOP */
 	uj_BC_NYI, /* 0x4e JLOOP */
-	uj_BC_NYI, /* 0x4f JMP */
+	uj_BC_JMP, /* 0x4f JMP */
 	uj_BC_IFUNCF, /* 0x50 FUNCF */ /* FIXME */
 	uj_BC_IFUNCF, /* 0x51 IFUNCF */
 	uj_BC_NYI, /* 0x52 JFUNCF */
@@ -285,6 +290,52 @@ static void *uj_BC_NYI(HANDLER_SIGNATURE)
 
 	vm_assert(0);
 	return NULL;
+}
+
+static void *uj_BC_ISTC(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *src = vm_slot_rd(base, ins);
+
+	if (tvistruecond(src))
+		*dst = *src; /* Copy and proceed to JMP */
+	else
+		pc++; /* Skip JMP */
+
+	DISPATCH();
+}
+
+static void *uj_BC_ISFC(HANDLER_SIGNATURE)
+{
+	TValue *dst = vm_slot_ra(base, ins);
+	TValue *src = vm_slot_rd(base, ins);
+
+	if (!tvistruecond(src))
+		*dst = *src; /* Copy and proceed to JMP */
+	else
+		pc++; /* Skip JMP */
+
+	DISPATCH();
+}
+
+static void *uj_BC_IST(HANDLER_SIGNATURE)
+{
+	TValue *test = vm_slot_rd(base, ins);
+
+	if (!tvistruecond(test))
+		pc++; /* Skip JMP */
+
+	DISPATCH();
+}
+
+static void *uj_BC_ISF(HANDLER_SIGNATURE)
+{
+	TValue *test = vm_slot_rd(base, ins);
+
+	if (tvistruecond(test))
+		pc++; /* Skip JMP */
+
+	DISPATCH();
 }
 
 static void *uj_BC_MOV(HANDLER_SIGNATURE)
@@ -962,6 +1013,13 @@ restore_PC:
 	vmf->kbase = pc2proto(((base - 1)->fr.func)->fn.l.pc)->k; /* setup_kbase */
 	/* NYI: set_vmstate_lfunc */
 	/* NYI: checktimeout */
+
+	DISPATCH();
+}
+
+static void *uj_BC_JMP(HANDLER_SIGNATURE)
+{
+	pc += vm_rj(ins);
 
 	DISPATCH();
 }
