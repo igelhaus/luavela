@@ -83,6 +83,10 @@ typedef void *(* bc_handler)(BCIns *, TValue *, struct vm_frame *, BCIns);
 	return vm_next_call(pc, base, vmf, ins)
 
 static void *uj_BC_NYI(HANDLER_SIGNATURE);
+static void *uj_BC_ISLT(HANDLER_SIGNATURE);
+static void *uj_BC_ISGE(HANDLER_SIGNATURE);
+static void *uj_BC_ISLE(HANDLER_SIGNATURE);
+static void *uj_BC_ISGT(HANDLER_SIGNATURE);
 static void *uj_BC_ISTC(HANDLER_SIGNATURE);
 static void *uj_BC_ISFC(HANDLER_SIGNATURE);
 static void *uj_BC_IST(HANDLER_SIGNATURE);
@@ -126,10 +130,10 @@ static void *uj_BC_FORI(HANDLER_SIGNATURE);
 static void *uj_BC_FORL(HANDLER_SIGNATURE);
 
 static const bc_handler dispatch[] = {
-	uj_BC_NYI, /* 0x00 ISLT */
-	uj_BC_NYI, /* 0x01 ISGE */
-	uj_BC_NYI, /* 0x02 ISLE */
-	uj_BC_NYI, /* 0x03 ISGT */
+	uj_BC_ISLT, /* 0x00 ISLT */
+	uj_BC_ISGE, /* 0x01 ISGE */
+	uj_BC_ISLE, /* 0x02 ISLE */
+	uj_BC_ISGT, /* 0x03 ISGT */
 	uj_BC_NYI, /* 0x04 ISEQV */
 	uj_BC_NYI, /* 0x05 ISNEV */
 	uj_BC_NYI, /* 0x06 ISEQS */
@@ -290,6 +294,66 @@ static void *uj_BC_NYI(HANDLER_SIGNATURE)
 
 	vm_assert(0);
 	return NULL;
+}
+
+static void *uj_BC_ISLT(HANDLER_SIGNATURE)
+{
+	TValue *op1 = vm_slot_ra(base, ins);
+	TValue *op2 = vm_slot_rd(base, ins);
+
+	if (LJ_UNLIKELY(!tvisnum(op1) || !tvisnum(op2))) {
+		vm_assert(0); /* FIXME: Implement metacall */
+	}
+
+	if (!isless(numV(op1), numV(op2)))
+		pc++; /* Skip JMP */
+
+	DISPATCH();
+}
+
+static void *uj_BC_ISGE(HANDLER_SIGNATURE)
+{
+	TValue *op1 = vm_slot_ra(base, ins);
+	TValue *op2 = vm_slot_rd(base, ins);
+
+	if (LJ_UNLIKELY(!tvisnum(op1) || !tvisnum(op2))) {
+		vm_assert(0); /* FIXME: Implement metacall */
+	}
+
+	if (!isgreaterequal(numV(op1), numV(op2)))
+		pc++; /* Skip JMP */
+
+	DISPATCH();
+}
+
+static void *uj_BC_ISLE(HANDLER_SIGNATURE)
+{
+	TValue *op1 = vm_slot_ra(base, ins);
+	TValue *op2 = vm_slot_rd(base, ins);
+
+	if (LJ_UNLIKELY(!tvisnum(op1) || !tvisnum(op2))) {
+		vm_assert(0); /* FIXME: Implement metacall */
+	}
+
+	if (!islessequal(numV(op1), numV(op2)))
+		pc++; /* Skip JMP */
+
+	DISPATCH();
+}
+
+static void *uj_BC_ISGT(HANDLER_SIGNATURE)
+{
+	TValue *op1 = vm_slot_ra(base, ins);
+	TValue *op2 = vm_slot_rd(base, ins);
+
+	if (LJ_UNLIKELY(!tvisnum(op1) || !tvisnum(op2))) {
+		vm_assert(0); /* FIXME: Implement metacall */
+	}
+
+	if (!isgreater(numV(op1), numV(op2)))
+		pc++; /* Skip JMP */
+
+	DISPATCH();
 }
 
 static void *uj_BC_ISTC(HANDLER_SIGNATURE)
