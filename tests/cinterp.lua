@@ -482,9 +482,49 @@ end
 -- 0168    JMP      8 => 0170
 -- 0169    KSHORT   7   1
 -- 0170    ADD      0   0   7
--- 0171    GGET     7   3      ; "print"
+-- 0171    KPRI     7   2
+-- 0172    ISNEP    7   2
+-- 0173    JMP      8 => 0176
+-- 0174    KSHORT   8   1
+-- 0175    JMP      9 => 0177
+-- 0176    KSHORT   8  -1
+-- 0177    ADD      0   0   8
+-- 0178    ISEQP    7   2
+-- 0179    JMP      8 => 0182
+-- 0180    KSHORT   8   1
+-- 0181    JMP      9 => 0183
+-- 0182    KSHORT   8  -1
+-- 0183    ADD      0   0   8
+-- 0184    ISEQP    7   1
+-- 0185    JMP      8 => 0188
+-- 0186    KSHORT   8   1
+-- 0187    JMP      9 => 0189
+-- 0188    KSHORT   8  -1
+-- 0189    ADD      0   0   8
+-- 0190    ISNEP    7   1
+-- 0191    JMP      8 => 0194
+-- 0192    KSHORT   8   1
+-- 0193    JMP      9 => 0195
+-- 0194    KSHORT   8  -1
+-- 0195    ADD      0   0   8
+-- 0196    GGET     8   2      ; "newproxy"
+-- 0197    KPRI     9   2
+-- 0198    CALL     8   2   2
+-- 0199    ISNEP    8   0
+-- 0200    JMP      9 => 0203
+-- 0201    KSHORT   9   1
+-- 0202    JMP     10 => 0204
+-- 0203    KSHORT   9  -1
+-- 0204    ADD      0   0   9
+-- 0205    ISEQP    8   0
+-- 0206    JMP      9 => 0209
+-- 0207    KSHORT   9   1
+-- 0208    JMP     10 => 0210
+-- 0209    KSHORT   9  -1
+-- 0210    ADD      0   0   9
+-- 0211    GGET     9   3      ; "print"
 -- <print test result>
--- 0179    RET0     0   1
+-- 0219    RET0     0   1
 local huge = math.huge
 local cmptest = function()
 	local test = 0
@@ -550,6 +590,22 @@ local cmptest = function()
 	test = test + (nud == 9 and 0 or -1)
 	-- ISEQN with JMP (non-numeric)
 	test = test + (nud ~= 9 and 0 or 1)
+
+	local pri = true
+	-- ISNEP no JMP
+	test = test + (pri == true and 1 or -1)
+	-- ISEQP with JMP
+	test = test + (pri ~= true and 1 or -1)
+	-- ISEQP no JMP
+	test = test + (pri ~= false and 1 or -1)
+	-- ISNEP with JMP
+	test = test + (pri == false and 1 or -1)
+
+	local pud = newproxy(true)
+	-- ISNEP with JMP (non-pri)
+	test = test + (pud == nil and 1 or -1)
+	-- ISEQP no JMP (non-pri)
+	test = test + (pud ~= nil and 1 or -1)
 
 	print('Comparison ops:', test == 0 and 'OK' or 'FAIL')
 end

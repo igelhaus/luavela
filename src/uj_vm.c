@@ -91,6 +91,8 @@ static void *uj_BC_ISEQS(HANDLER_SIGNATURE);
 static void *uj_BC_ISNES(HANDLER_SIGNATURE);
 static void *uj_BC_ISEQN(HANDLER_SIGNATURE);
 static void *uj_BC_ISNEN(HANDLER_SIGNATURE);
+static void *uj_BC_ISEQP(HANDLER_SIGNATURE);
+static void *uj_BC_ISNEP(HANDLER_SIGNATURE);
 static void *uj_BC_ISTC(HANDLER_SIGNATURE);
 static void *uj_BC_ISFC(HANDLER_SIGNATURE);
 static void *uj_BC_IST(HANDLER_SIGNATURE);
@@ -144,8 +146,8 @@ static const bc_handler dispatch[] = {
 	uj_BC_ISNES, /* 0x07 ISNES */
 	uj_BC_ISEQN, /* 0x08 ISEQN */
 	uj_BC_ISNEN, /* 0x09 ISNEN */
-	uj_BC_NYI, /* 0x0a ISEQP */
-	uj_BC_NYI, /* 0x0b ISNEP */
+	uj_BC_ISEQP, /* 0x0a ISEQP */
+	uj_BC_ISNEP, /* 0x0b ISNEP */
 	uj_BC_ISTC, /* 0x0c ISTC */
 	uj_BC_ISFC, /* 0x0d ISFC */
 	uj_BC_IST, /* 0x0e IST */
@@ -433,6 +435,40 @@ static void *uj_BC_ISNEN(HANDLER_SIGNATURE)
 
 	if (numV(op1) == op2)
 skip:
+		pc++; /* Skip JMP */
+
+	DISPATCH();
+}
+
+static void *uj_BC_ISEQP(HANDLER_SIGNATURE)
+{
+	TValue *op1 = vm_slot_ra(base, ins);
+	uint32_t op2 = ~vm_raw_rd(ins);
+
+#if LJ_HASFFI
+	if (LJ_UNLIKELY(tviscdata(op1))) {
+		vm_assert(0); /* FIXME: Implement vmeta_equal_cd */
+	}
+#endif /* LJ_HASFFI */
+
+	if (gettag(op1) != op2)
+		pc++; /* Skip JMP */
+
+	DISPATCH();
+}
+
+static void *uj_BC_ISNEP(HANDLER_SIGNATURE)
+{
+	TValue *op1 = vm_slot_ra(base, ins);
+	uint32_t op2 = ~vm_raw_rd(ins);
+
+#if LJ_HASFFI
+	if (LJ_UNLIKELY(tviscdata(op1))) {
+		vm_assert(0); /* FIXME: Implement vmeta_equal_cd */
+	}
+#endif /* LJ_HASFFI */
+
+	if (gettag(op1) == op2)
 		pc++; /* Skip JMP */
 
 	DISPATCH();
