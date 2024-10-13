@@ -87,6 +87,8 @@ static void *uj_BC_ISLT(HANDLER_SIGNATURE);
 static void *uj_BC_ISGE(HANDLER_SIGNATURE);
 static void *uj_BC_ISLE(HANDLER_SIGNATURE);
 static void *uj_BC_ISGT(HANDLER_SIGNATURE);
+static void *uj_BC_ISEQS(HANDLER_SIGNATURE);
+static void *uj_BC_ISNES(HANDLER_SIGNATURE);
 static void *uj_BC_ISEQN(HANDLER_SIGNATURE);
 static void *uj_BC_ISNEN(HANDLER_SIGNATURE);
 static void *uj_BC_ISTC(HANDLER_SIGNATURE);
@@ -138,8 +140,8 @@ static const bc_handler dispatch[] = {
 	uj_BC_ISGT, /* 0x03 ISGT */
 	uj_BC_NYI, /* 0x04 ISEQV */
 	uj_BC_NYI, /* 0x05 ISNEV */
-	uj_BC_NYI, /* 0x06 ISEQS */
-	uj_BC_NYI, /* 0x07 ISNES */
+	uj_BC_ISEQS, /* 0x06 ISEQS */
+	uj_BC_ISNES, /* 0x07 ISNES */
 	uj_BC_ISEQN, /* 0x08 ISEQN */
 	uj_BC_ISNEN, /* 0x09 ISNEN */
 	uj_BC_NYI, /* 0x0a ISEQP */
@@ -355,6 +357,44 @@ static void *uj_BC_ISGT(HANDLER_SIGNATURE)
 	if (!isgreater(numV(op1), numV(op2)))
 		pc++; /* Skip JMP */
 
+	DISPATCH();
+}
+
+static void *uj_BC_ISEQS(HANDLER_SIGNATURE)
+{
+	TValue *op1 = vm_slot_ra(base, ins);
+	GCstr *op2 = (GCstr *)vm_kbase_gco(vmf->kbase, vm_raw_rd(ins));
+
+	if (LJ_UNLIKELY(!tvisstr(op1))) {
+#if LJ_HASFFI
+		if (LJ_UNLIKELY(tviscdata(op1)))
+			vm_assert(0); /* FIXME: Implement vmeta_equal_cd */
+#endif /* LJ_HASFFI */
+		goto skip;
+	}
+
+	if (strV(op1) != op2)
+skip:
+		pc++; /* Skip JMP */
+	DISPATCH();
+}
+
+static void *uj_BC_ISNES(HANDLER_SIGNATURE)
+{
+	TValue *op1 = vm_slot_ra(base, ins);
+	GCstr *op2 = (GCstr *)vm_kbase_gco(vmf->kbase, vm_raw_rd(ins));
+
+	if (LJ_UNLIKELY(!tvisstr(op1))) {
+#if LJ_HASFFI
+		if (LJ_UNLIKELY(tviscdata(op1)))
+			vm_assert(0); /* FIXME: Implement vmeta_equal_cd */
+#endif /* LJ_HASFFI */
+		goto skip;
+	}
+
+	if (strV(op1) == op2)
+skip:
+		pc++; /* Skip JMP */
 	DISPATCH();
 }
 

@@ -402,49 +402,89 @@ end
 -- 0088    JMP      4 => 0090
 -- 0089    KSHORT   3  -1
 -- 0090    ADD      0   0   3
--- 0091    KSHORT   3   9
--- 0092    ISNEN    3   0      ; 9
+-- 0091    KSTR     3   0      ; "QQ"
+-- 0092    ISNES    3   0      ; "QQ"
 -- 0093    JMP      4 => 0096
 -- 0094    KSHORT   4   1
 -- 0095    JMP      5 => 0097
 -- 0096    KSHORT   4  -1
 -- 0097    ADD      0   0   4
--- 0098    ISEQN    3   0      ; 9
+-- 0098    ISEQS    3   0      ; "QQ"
 -- 0099    JMP      4 => 0102
 -- 0100    KSHORT   4   1
 -- 0101    JMP      5 => 0103
 -- 0102    KSHORT   4  -1
 -- 0103    ADD      0   0   4
--- 0104    ISEQN    3   1      ; 0
+-- 0104    ISEQS    3   1      ; "QKRQ"
 -- 0105    JMP      4 => 0108
 -- 0106    KSHORT   4   1
 -- 0107    JMP      5 => 0109
 -- 0108    KSHORT   4  -1
 -- 0109    ADD      0   0   4
--- 0110    ISNEN    3   1      ; 0
+-- 0110    ISNES    3   1      ; "QKRQ"
 -- 0111    JMP      4 => 0114
 -- 0112    KSHORT   4   1
 -- 0113    JMP      5 => 0115
 -- 0114    KSHORT   4  -1
 -- 0115    ADD      0   0   4
--- 0116    GGET     4   0      ; "newproxy"
+-- 0116    GGET     4   2      ; "newproxy"
 -- 0117    KPRI     5   2
 -- 0118    CALL     4   2   2
--- 0119    ISNEN    4   0      ; 9
+-- 0119    ISNES    4   0      ; "QQ"
 -- 0120    JMP      5 => 0123
 -- 0121    KSHORT   5   0
 -- 0122    JMP      6 => 0124
 -- 0123    KSHORT   5  -1
 -- 0124    ADD      0   0   5
--- 0125    ISEQN    4   0      ; 9
+-- 0125    ISEQS    4   0      ; "QQ"
 -- 0126    JMP      5 => 0129
 -- 0127    KSHORT   5   0
 -- 0128    JMP      6 => 0130
 -- 0129    KSHORT   5   1
 -- 0130    ADD      0   0   5
--- 0131    GGET     5   1      ; "print"
+-- 0131    KSHORT   5   9
+-- 0132    ISNEN    5   0      ; 9
+-- 0133    JMP      6 => 0136
+-- 0134    KSHORT   6   1
+-- 0135    JMP      7 => 0137
+-- 0136    KSHORT   6  -1
+-- 0137    ADD      0   0   6
+-- 0138    ISEQN    5   0      ; 9
+-- 0139    JMP      6 => 0142
+-- 0140    KSHORT   6   1
+-- 0141    JMP      7 => 0143
+-- 0142    KSHORT   6  -1
+-- 0143    ADD      0   0   6
+-- 0144    ISEQN    5   1      ; 0
+-- 0145    JMP      6 => 0148
+-- 0146    KSHORT   6   1
+-- 0147    JMP      7 => 0149
+-- 0148    KSHORT   6  -1
+-- 0149    ADD      0   0   6
+-- 0150    ISNEN    5   1      ; 0
+-- 0151    JMP      6 => 0154
+-- 0152    KSHORT   6   1
+-- 0153    JMP      7 => 0155
+-- 0154    KSHORT   6  -1
+-- 0155    ADD      0   0   6
+-- 0156    GGET     6   2      ; "newproxy"
+-- 0157    KPRI     7   2
+-- 0158    CALL     6   2   2
+-- 0159    ISNEN    6   0      ; 9
+-- 0160    JMP      7 => 0163
+-- 0161    KSHORT   7   0
+-- 0162    JMP      8 => 0164
+-- 0163    KSHORT   7  -1
+-- 0164    ADD      0   0   7
+-- 0165    ISEQN    6   0      ; 9
+-- 0166    JMP      7 => 0169
+-- 0167    KSHORT   7   0
+-- 0168    JMP      8 => 0170
+-- 0169    KSHORT   7   1
+-- 0170    ADD      0   0   7
+-- 0171    GGET     7   3      ; "print"
 -- <print test result>
--- 0139    RET0     0   1
+-- 0179    RET0     0   1
 local huge = math.huge
 local cmptest = function()
 	local test = 0
@@ -478,6 +518,22 @@ local cmptest = function()
 	test = test + (not (nan <= 0) and 0 or -1)
 	-- ISGT with NaN
 	test = test + (nan >= 0 and 0 or -1)
+
+	local str = 'QQ'
+	-- ISNES no JMP
+	test = test + (str == 'QQ' and 1 or -1)
+	-- ISEQS with JMP
+	test = test + (str ~= 'QQ' and 1 or -1)
+	-- ISEQS no JMP
+	test = test + (str ~= 'QKRQ' and 1 or -1)
+	-- ISNES with JMP
+	test = test + (str == 'QKRQ' and 1 or -1)
+
+	local sud = newproxy(true)
+	-- ISNES with JMP (non-string)
+	test = test + (sud == 'QQ' and 0 or -1)
+	-- ISEQS with JMP (non-string)
+	test = test + (sud ~= 'QQ' and 0 or 1)
 
 	local num = 9
 	-- ISNEN no JMP
