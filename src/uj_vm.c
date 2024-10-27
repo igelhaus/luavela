@@ -87,6 +87,8 @@ static void *uj_BC_ISLT(HANDLER_SIGNATURE);
 static void *uj_BC_ISGE(HANDLER_SIGNATURE);
 static void *uj_BC_ISLE(HANDLER_SIGNATURE);
 static void *uj_BC_ISGT(HANDLER_SIGNATURE);
+static void *uj_BC_ISEQV(HANDLER_SIGNATURE);
+static void *uj_BC_ISNEV(HANDLER_SIGNATURE);
 static void *uj_BC_ISEQS(HANDLER_SIGNATURE);
 static void *uj_BC_ISNES(HANDLER_SIGNATURE);
 static void *uj_BC_ISEQN(HANDLER_SIGNATURE);
@@ -140,8 +142,8 @@ static const bc_handler dispatch[] = {
 	uj_BC_ISGE, /* 0x01 ISGE */
 	uj_BC_ISLE, /* 0x02 ISLE */
 	uj_BC_ISGT, /* 0x03 ISGT */
-	uj_BC_NYI, /* 0x04 ISEQV */
-	uj_BC_NYI, /* 0x05 ISNEV */
+	uj_BC_ISEQV, /* 0x04 ISEQV */
+	uj_BC_ISNEV, /* 0x05 ISNEV */
 	uj_BC_ISEQS, /* 0x06 ISEQS */
 	uj_BC_ISNES, /* 0x07 ISNES */
 	uj_BC_ISEQN, /* 0x08 ISEQN */
@@ -359,6 +361,100 @@ static void *uj_BC_ISGT(HANDLER_SIGNATURE)
 	if (!isgreater(numV(op1), numV(op2)))
 		pc++; /* Skip JMP */
 
+	DISPATCH();
+}
+
+static void *uj_BC_ISEQV(HANDLER_SIGNATURE)
+{
+	TValue *op1 = vm_slot_ra(base, ins);
+	TValue *op2 = vm_slot_rd(base, ins);
+
+	/* Handle the case when both values are numbers. */
+	if (LJ_LIKELY(tvisnum(op1) && tvisnum(op2))) {
+		if (numV(op1) == numV(op2))
+			goto next;
+		goto skip;
+	}
+
+#if LJ_HASFFI
+	/* Use metamethod if one of the values is CData type. */
+	if (LJ_LIKELY(tviscdata(op1)) || tviscdata(op2))
+		vm_assert(0); /* FIXME: Implement vmeta_equal_cd */
+#endif /* LJ_HASFFI */
+
+	/* Check, whether the types are the same. */
+	if (gettag(op1) != gettag(op2))
+		goto skip;
+
+	/*
+	 * Types are equal, so primitives are equal either.
+	 * Otherwise, compare GCobj or pvalue.
+	 */
+	if (tvispri(op1) || gcV(op1) == gcV(op2))
+		goto next;
+
+	/*
+	 * If GCobj/pvalue are different for non-tables and
+	 * non-userdata, the values are considered not equal.
+	 * <tvisnum> is not required, since numeric type has been
+	 * already processed above.
+	 */
+	if (!tvistabud(op1))
+		goto skip;
+
+	/* TODO: Check metamethods for tables and ud. */
+	vm_assert(0); /* FIXME: Implement metacall */
+
+skip:
+	pc++; /* Skip JMP */
+next:
+	DISPATCH();
+}
+
+static void *uj_BC_ISNEV(HANDLER_SIGNATURE)
+{
+	TValue *op1 = vm_slot_ra(base, ins);
+	TValue *op2 = vm_slot_rd(base, ins);
+
+	/* Handle the case when both values are numbers. */
+	if (LJ_LIKELY(tvisnum(op1) && tvisnum(op2))) {
+		if (numV(op1) != numV(op2))
+			goto next;
+		goto skip;
+	}
+
+#if LJ_HASFFI
+	/* Use metamethod if one of the values is CData type. */
+	if (LJ_LIKELY(tviscdata(op1)) || tviscdata(op2))
+		vm_assert(0); /* FIXME: Implement vmeta_equal_cd */
+#endif /* LJ_HASFFI */
+
+	/* Check, whether the types are the same. */
+	if (gettag(op1) != gettag(op2))
+		goto next;
+
+	/*
+	 * Types are equal, so primitives are equal either.
+	 * Otherwise, compare GCobj or pvalue.
+	 */
+	if (tvispri(op1) || gcV(op1) == gcV(op2))
+		goto skip;
+
+	/*
+	 * If GCobj/pvalue are different for non-tables and
+	 * non-userdata, the values are considered not equal.
+	 * <tvisnum> is not required, since numeric type has been
+	 * already processed above.
+	 */
+	if (!tvistabud(op1))
+		goto next;
+
+	/* TODO: Check metamethods for tables and ud. */
+	vm_assert(0); /* FIXME: Implement metacall */
+
+skip:
+	pc++; /* Skip JMP */
+next:
 	DISPATCH();
 }
 

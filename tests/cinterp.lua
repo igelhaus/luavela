@@ -522,9 +522,100 @@ end
 -- 0208    JMP     10 => 0210
 -- 0209    KSHORT   9  -1
 -- 0210    ADD      0   0   9
--- 0211    GGET     9   3      ; "print"
+-- 0211    KPRI     9   0
+-- 0212    KPRI    10   2
+-- 0213    KSHORT  11   0
+-- 0214    KSHORT  12   9
+-- 0215    KSTR    13   1      ; "QKRQ"
+-- 0216    KSTR    14   0      ; "QQ"
+-- 0217    MOV     15   8
+-- 0218    ISNEV    7   9
+-- 0219    JMP     16 => 0222
+-- 0220    KSHORT  16   1
+-- 0221    JMP     17 => 0223
+-- 0222    KSHORT  16  -1
+-- 0223    ADD      0   0  16
+-- 0224    ISEQV    7   9
+-- 0225    JMP     16 => 0228
+-- 0226    KSHORT  16   1
+-- 0227    JMP     17 => 0229
+-- 0228    KSHORT  16  -1
+-- 0229    ADD      0   0  16
+-- 0230    ISEQV    7  10
+-- 0231    JMP     16 => 0234
+-- 0232    KSHORT  16   1
+-- 0233    JMP     17 => 0235
+-- 0234    KSHORT  16  -1
+-- 0235    ADD      0   0  16
+-- 0236    ISNEV    7  10
+-- 0237    JMP     16 => 0240
+-- 0238    KSHORT  16   1
+-- 0239    JMP     17 => 0241
+-- 0240    KSHORT  16  -1
+-- 0241    ADD      0   0  16
+-- 0242    ISNEV    5  11
+-- 0243    JMP     16 => 0246
+-- 0244    KSHORT  16   1
+-- 0245    JMP     17 => 0247
+-- 0246    KSHORT  16  -1
+-- 0247    ADD      0   0  16
+-- 0248    ISEQV    5  11
+-- 0249    JMP     16 => 0252
+-- 0250    KSHORT  16   1
+-- 0251    JMP     17 => 0253
+-- 0252    KSHORT  16  -1
+-- 0253    ADD      0   0  16
+-- 0254    ISEQV    5  12
+-- 0255    JMP     16 => 0258
+-- 0256    KSHORT  16   1
+-- 0257    JMP     17 => 0259
+-- 0258    KSHORT  16  -1
+-- 0259    ADD      0   0  16
+-- 0260    ISNEV    5  12
+-- 0261    JMP     16 => 0264
+-- 0262    KSHORT  16   1
+-- 0263    JMP     17 => 0265
+-- 0264    KSHORT  16  -1
+-- 0265    ADD      0   0  16
+-- 0266    ISNEV    3  13
+-- 0267    JMP     16 => 0270
+-- 0268    KSHORT  16   1
+-- 0269    JMP     17 => 0271
+-- 0270    KSHORT  16  -1
+-- 0271    ADD      0   0  16
+-- 0272    ISEQV    3  13
+-- 0273    JMP     16 => 0276
+-- 0274    KSHORT  16   1
+-- 0275    JMP     17 => 0277
+-- 0276    KSHORT  16  -1
+-- 0277    ADD      0   0  16
+-- 0278    ISEQV    3  14
+-- 0279    JMP     16 => 0282
+-- 0280    KSHORT  16   1
+-- 0281    JMP     17 => 0283
+-- 0282    KSHORT  16  -1
+-- 0283    ADD      0   0  16
+-- 0284    ISNEV    3  14
+-- 0285    JMP     16 => 0288
+-- 0286    KSHORT  16   1
+-- 0287    JMP     17 => 0289
+-- 0288    KSHORT  16  -1
+-- 0289    ADD      0   0  16
+-- 0290    ISEQV    8  15
+-- 0291    JMP     16 => 0294
+-- 0292    KSHORT  16   1
+-- 0293    JMP     17 => 0295
+-- 0294    KSHORT  16  -1
+-- 0295    ADD      0   0  16
+-- 0296    ISNEV    8  15
+-- 0297    JMP     16 => 0300
+-- 0298    KSHORT  16   1
+-- 0299    JMP     17 => 0301
+-- 0300    KSHORT  16  -1
+-- 0301    ADD      0   0  16
+-- 0302    GGET    16   3      ; "print"
 -- <print test result>
--- 0219    RET0     0   1
+-- 0310    RET0     0   1
 local huge = math.huge
 local cmptest = function()
 	local test = 0
@@ -606,6 +697,46 @@ local cmptest = function()
 	test = test + (pud == nil and 1 or -1)
 	-- ISEQP no JMP (non-pri)
 	test = test + (pud ~= nil and 1 or -1)
+
+	local vnil = nil
+	local vpri = true
+	local vzero = 0
+	local vnum = 9
+	local vqkrq = 'QKRQ'
+	local vstr = 'QQ'
+	local vpud = pud
+	-- ISNEV no JMP (primitives)
+	test = test + (pri == vnil and 1 or -1)
+	-- ISEQV with JMP (primitives)
+	test = test + (pri ~= vnil and 1 or -1)
+	-- ISEQV no JMP (primitives)
+	test = test + (pri ~= vpri and 1 or -1)
+	-- ISNEV with JMP (primitives)
+	test = test + (pri == vpri and 1 or -1)
+	-- ISNEV no JMP (numbers)
+	test = test + (num == vzero and 1 or -1)
+	-- ISEQV with JMP (numbers)
+	test = test + (num ~= vzero and 1 or -1)
+	-- ISEQV no JMP (numbers)
+	test = test + (num ~= vnum and 1 or -1)
+	-- ISNEV with JMP (numbers)
+	test = test + (num == vnum and 1 or -1)
+	-- ISNEV no JMP (strings)
+	test = test + (str == vqkrq and 1 or -1)
+	-- ISEQV with JMP (strings)
+	test = test + (str ~= vqkrq and 1 or -1)
+	-- ISEQV no JMP (strings)
+	test = test + (str ~= vstr and 1 or -1)
+	-- ISNEV with JMP (strings)
+	test = test + (str == vstr and 1 or -1)
+	-- ISEQV no JMP (userdata)
+	test = test + (pud ~= vpud and 1 or -1)
+	-- ISNEV with JMP (userdata)
+	test = test + (pud == vpud and 1 or -1)
+	-- FIXME: Different userdata comparison is not tested,
+	-- since metamethods are NYI. Add more cases later.
+	-- FIXME: Table comparison is not tested, since all of the
+	-- table-related bytecodes are NYI. Add more cases later.
 
 	print('Comparison ops:', test == 0 and 'OK' or 'FAIL')
 end
