@@ -402,9 +402,49 @@ end
 -- 0088    JMP      4 => 0090
 -- 0089    KSHORT   3  -1
 -- 0090    ADD      0   0   3
--- 0091    GGET     3   0      ; "print"
+-- 0091    KSHORT   3   9
+-- 0092    ISNEN    3   0      ; 9
+-- 0093    JMP      4 => 0096
+-- 0094    KSHORT   4   1
+-- 0095    JMP      5 => 0097
+-- 0096    KSHORT   4  -1
+-- 0097    ADD      0   0   4
+-- 0098    ISEQN    3   0      ; 9
+-- 0099    JMP      4 => 0102
+-- 0100    KSHORT   4   1
+-- 0101    JMP      5 => 0103
+-- 0102    KSHORT   4  -1
+-- 0103    ADD      0   0   4
+-- 0104    ISEQN    3   1      ; 0
+-- 0105    JMP      4 => 0108
+-- 0106    KSHORT   4   1
+-- 0107    JMP      5 => 0109
+-- 0108    KSHORT   4  -1
+-- 0109    ADD      0   0   4
+-- 0110    ISNEN    3   1      ; 0
+-- 0111    JMP      4 => 0114
+-- 0112    KSHORT   4   1
+-- 0113    JMP      5 => 0115
+-- 0114    KSHORT   4  -1
+-- 0115    ADD      0   0   4
+-- 0116    GGET     4   0      ; "newproxy"
+-- 0117    KPRI     5   2
+-- 0118    CALL     4   2   2
+-- 0119    ISNEN    4   0      ; 9
+-- 0120    JMP      5 => 0123
+-- 0121    KSHORT   5   0
+-- 0122    JMP      6 => 0124
+-- 0123    KSHORT   5  -1
+-- 0124    ADD      0   0   5
+-- 0125    ISEQN    4   0      ; 9
+-- 0126    JMP      5 => 0129
+-- 0127    KSHORT   5   0
+-- 0128    JMP      6 => 0130
+-- 0129    KSHORT   5   1
+-- 0130    ADD      0   0   5
+-- 0131    GGET     5   1      ; "print"
 -- <print test result>
--- 0103    RET0     0   1
+-- 0139    RET0     0   1
 local huge = math.huge
 local cmptest = function()
 	local test = 0
@@ -439,9 +479,23 @@ local cmptest = function()
 	-- ISGT with NaN
 	test = test + (nan >= 0 and 0 or -1)
 
-	-- FIXME: Can't use numeric comparison due to NYI. Will be
-	-- fixed in the upcoming patches.
-	print('Comparison ops:', not (test < 0 and test > 0) and 'OK' or 'FAIL')
+	local num = 9
+	-- ISNEN no JMP
+	test = test + (num == 9 and 1 or -1)
+	-- ISEQN with JMP
+	test = test + (num ~= 9 and 1 or -1)
+	-- ISEQN no JMP
+	test = test + (num ~= 0 and 1 or -1)
+	-- ISNEN with JMP
+	test = test + (num == 0 and 1 or -1)
+
+	local nud = newproxy(true)
+	-- ISNEN with JMP (non-numeric)
+	test = test + (nud == 9 and 0 or -1)
+	-- ISEQN with JMP (non-numeric)
+	test = test + (nud ~= 9 and 0 or 1)
+
+	print('Comparison ops:', test == 0 and 'OK' or 'FAIL')
 end
 
 local cinterpcall = ujit.debug.cinterpcall
