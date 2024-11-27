@@ -311,6 +311,436 @@ local uttest = function()
 	print('Unary test and copy:', test or fcopy or tcopy and 'OK' or 'FAIL')
 end
 
+
+-- 0001    HOTCNT
+-- 0002    KSHORT   0   0
+-- 0003    KSHORT   1   9
+-- 0004    UGET     2   0      ; huge
+-- 0005    ISLT     2   1
+-- 0006    JMP      2 => 0009
+-- 0007    KSHORT   2   1
+-- 0008    JMP      3 => 0010
+-- 0009    KSHORT   2  -1
+-- 0010    ADD      0   0   2
+-- 0011    KSHORT   2   0
+-- 0012    ISLT     2   1
+-- 0013    JMP      2 => 0016
+-- 0014    KSHORT   2   1
+-- 0015    JMP      3 => 0017
+-- 0016    KSHORT   2  -1
+-- 0017    ADD      0   0   2
+-- 0018    UGET     2   0      ; huge
+-- 0019    ISGE     1   2
+-- 0020    JMP      2 => 0023
+-- 0021    KSHORT   2   1
+-- 0022    JMP      3 => 0024
+-- 0023    KSHORT   2  -1
+-- 0024    ADD      0   0   2
+-- 0025    KSHORT   2   0
+-- 0026    ISGE     1   2
+-- 0027    JMP      2 => 0030
+-- 0028    KSHORT   2   1
+-- 0029    JMP      3 => 0031
+-- 0030    KSHORT   2  -1
+-- 0031    ADD      0   0   2
+-- 0032    KSHORT   2   0
+-- 0033    ISLE     1   2
+-- 0034    JMP      2 => 0037
+-- 0035    KSHORT   2   1
+-- 0036    JMP      3 => 0038
+-- 0037    KSHORT   2  -1
+-- 0038    ADD      0   0   2
+-- 0039    UGET     2   0      ; huge
+-- 0040    ISLE     1   2
+-- 0041    JMP      2 => 0044
+-- 0042    KSHORT   2   1
+-- 0043    JMP      3 => 0045
+-- 0044    KSHORT   2  -1
+-- 0045    ADD      0   0   2
+-- 0046    KSHORT   2   0
+-- 0047    ISGT     2   1
+-- 0048    JMP      2 => 0051
+-- 0049    KSHORT   2   1
+-- 0050    JMP      3 => 0052
+-- 0051    KSHORT   2  -1
+-- 0052    ADD      0   0   2
+-- 0053    UGET     2   0      ; huge
+-- 0054    ISGT     2   1
+-- 0055    JMP      2 => 0058
+-- 0056    KSHORT   2   1
+-- 0057    JMP      3 => 0059
+-- 0058    KSHORT   2  -1
+-- 0059    ADD      0   0   2
+-- 0060    KSHORT   2   0
+-- 0061    KSHORT   3   0
+-- 0062    DIV      2   3   2
+-- 0063    KSHORT   3   0
+-- 0064    ISLT     3   2
+-- 0065    JMP      3 => 0068
+-- 0066    KSHORT   3   0
+-- 0067    JMP      4 => 0069
+-- 0068    KSHORT   3  -1
+-- 0069    ADD      0   0   3
+-- 0070    KSHORT   3   0
+-- 0071    ISGE     2   3
+-- 0072    JMP      3 => 0075
+-- 0073    KSHORT   3   0
+-- 0074    JMP      4 => 0076
+-- 0075    KSHORT   3  -1
+-- 0076    ADD      0   0   3
+-- 0077    KSHORT   3   0
+-- 0078    ISLE     2   3
+-- 0079    JMP      3 => 0082
+-- 0080    KSHORT   3   0
+-- 0081    JMP      4 => 0083
+-- 0082    KSHORT   3  -1
+-- 0083    ADD      0   0   3
+-- 0084    KSHORT   3   0
+-- 0085    ISGT     3   2
+-- 0086    JMP      3 => 0089
+-- 0087    KSHORT   3   0
+-- 0088    JMP      4 => 0090
+-- 0089    KSHORT   3  -1
+-- 0090    ADD      0   0   3
+-- 0091    KSTR     3   0      ; "QQ"
+-- 0092    ISNES    3   0      ; "QQ"
+-- 0093    JMP      4 => 0096
+-- 0094    KSHORT   4   1
+-- 0095    JMP      5 => 0097
+-- 0096    KSHORT   4  -1
+-- 0097    ADD      0   0   4
+-- 0098    ISEQS    3   0      ; "QQ"
+-- 0099    JMP      4 => 0102
+-- 0100    KSHORT   4   1
+-- 0101    JMP      5 => 0103
+-- 0102    KSHORT   4  -1
+-- 0103    ADD      0   0   4
+-- 0104    ISEQS    3   1      ; "QKRQ"
+-- 0105    JMP      4 => 0108
+-- 0106    KSHORT   4   1
+-- 0107    JMP      5 => 0109
+-- 0108    KSHORT   4  -1
+-- 0109    ADD      0   0   4
+-- 0110    ISNES    3   1      ; "QKRQ"
+-- 0111    JMP      4 => 0114
+-- 0112    KSHORT   4   1
+-- 0113    JMP      5 => 0115
+-- 0114    KSHORT   4  -1
+-- 0115    ADD      0   0   4
+-- 0116    GGET     4   2      ; "newproxy"
+-- 0117    KPRI     5   2
+-- 0118    CALL     4   2   2
+-- 0119    ISNES    4   0      ; "QQ"
+-- 0120    JMP      5 => 0123
+-- 0121    KSHORT   5   0
+-- 0122    JMP      6 => 0124
+-- 0123    KSHORT   5  -1
+-- 0124    ADD      0   0   5
+-- 0125    ISEQS    4   0      ; "QQ"
+-- 0126    JMP      5 => 0129
+-- 0127    KSHORT   5   0
+-- 0128    JMP      6 => 0130
+-- 0129    KSHORT   5   1
+-- 0130    ADD      0   0   5
+-- 0131    KSHORT   5   9
+-- 0132    ISNEN    5   0      ; 9
+-- 0133    JMP      6 => 0136
+-- 0134    KSHORT   6   1
+-- 0135    JMP      7 => 0137
+-- 0136    KSHORT   6  -1
+-- 0137    ADD      0   0   6
+-- 0138    ISEQN    5   0      ; 9
+-- 0139    JMP      6 => 0142
+-- 0140    KSHORT   6   1
+-- 0141    JMP      7 => 0143
+-- 0142    KSHORT   6  -1
+-- 0143    ADD      0   0   6
+-- 0144    ISEQN    5   1      ; 0
+-- 0145    JMP      6 => 0148
+-- 0146    KSHORT   6   1
+-- 0147    JMP      7 => 0149
+-- 0148    KSHORT   6  -1
+-- 0149    ADD      0   0   6
+-- 0150    ISNEN    5   1      ; 0
+-- 0151    JMP      6 => 0154
+-- 0152    KSHORT   6   1
+-- 0153    JMP      7 => 0155
+-- 0154    KSHORT   6  -1
+-- 0155    ADD      0   0   6
+-- 0156    GGET     6   2      ; "newproxy"
+-- 0157    KPRI     7   2
+-- 0158    CALL     6   2   2
+-- 0159    ISNEN    6   0      ; 9
+-- 0160    JMP      7 => 0163
+-- 0161    KSHORT   7   0
+-- 0162    JMP      8 => 0164
+-- 0163    KSHORT   7  -1
+-- 0164    ADD      0   0   7
+-- 0165    ISEQN    6   0      ; 9
+-- 0166    JMP      7 => 0169
+-- 0167    KSHORT   7   0
+-- 0168    JMP      8 => 0170
+-- 0169    KSHORT   7   1
+-- 0170    ADD      0   0   7
+-- 0171    KPRI     7   2
+-- 0172    ISNEP    7   2
+-- 0173    JMP      8 => 0176
+-- 0174    KSHORT   8   1
+-- 0175    JMP      9 => 0177
+-- 0176    KSHORT   8  -1
+-- 0177    ADD      0   0   8
+-- 0178    ISEQP    7   2
+-- 0179    JMP      8 => 0182
+-- 0180    KSHORT   8   1
+-- 0181    JMP      9 => 0183
+-- 0182    KSHORT   8  -1
+-- 0183    ADD      0   0   8
+-- 0184    ISEQP    7   1
+-- 0185    JMP      8 => 0188
+-- 0186    KSHORT   8   1
+-- 0187    JMP      9 => 0189
+-- 0188    KSHORT   8  -1
+-- 0189    ADD      0   0   8
+-- 0190    ISNEP    7   1
+-- 0191    JMP      8 => 0194
+-- 0192    KSHORT   8   1
+-- 0193    JMP      9 => 0195
+-- 0194    KSHORT   8  -1
+-- 0195    ADD      0   0   8
+-- 0196    GGET     8   2      ; "newproxy"
+-- 0197    KPRI     9   2
+-- 0198    CALL     8   2   2
+-- 0199    ISNEP    8   0
+-- 0200    JMP      9 => 0203
+-- 0201    KSHORT   9   1
+-- 0202    JMP     10 => 0204
+-- 0203    KSHORT   9  -1
+-- 0204    ADD      0   0   9
+-- 0205    ISEQP    8   0
+-- 0206    JMP      9 => 0209
+-- 0207    KSHORT   9   1
+-- 0208    JMP     10 => 0210
+-- 0209    KSHORT   9  -1
+-- 0210    ADD      0   0   9
+-- 0211    KPRI     9   0
+-- 0212    KPRI    10   2
+-- 0213    KSHORT  11   0
+-- 0214    KSHORT  12   9
+-- 0215    KSTR    13   1      ; "QKRQ"
+-- 0216    KSTR    14   0      ; "QQ"
+-- 0217    MOV     15   8
+-- 0218    ISNEV    7   9
+-- 0219    JMP     16 => 0222
+-- 0220    KSHORT  16   1
+-- 0221    JMP     17 => 0223
+-- 0222    KSHORT  16  -1
+-- 0223    ADD      0   0  16
+-- 0224    ISEQV    7   9
+-- 0225    JMP     16 => 0228
+-- 0226    KSHORT  16   1
+-- 0227    JMP     17 => 0229
+-- 0228    KSHORT  16  -1
+-- 0229    ADD      0   0  16
+-- 0230    ISEQV    7  10
+-- 0231    JMP     16 => 0234
+-- 0232    KSHORT  16   1
+-- 0233    JMP     17 => 0235
+-- 0234    KSHORT  16  -1
+-- 0235    ADD      0   0  16
+-- 0236    ISNEV    7  10
+-- 0237    JMP     16 => 0240
+-- 0238    KSHORT  16   1
+-- 0239    JMP     17 => 0241
+-- 0240    KSHORT  16  -1
+-- 0241    ADD      0   0  16
+-- 0242    ISNEV    5  11
+-- 0243    JMP     16 => 0246
+-- 0244    KSHORT  16   1
+-- 0245    JMP     17 => 0247
+-- 0246    KSHORT  16  -1
+-- 0247    ADD      0   0  16
+-- 0248    ISEQV    5  11
+-- 0249    JMP     16 => 0252
+-- 0250    KSHORT  16   1
+-- 0251    JMP     17 => 0253
+-- 0252    KSHORT  16  -1
+-- 0253    ADD      0   0  16
+-- 0254    ISEQV    5  12
+-- 0255    JMP     16 => 0258
+-- 0256    KSHORT  16   1
+-- 0257    JMP     17 => 0259
+-- 0258    KSHORT  16  -1
+-- 0259    ADD      0   0  16
+-- 0260    ISNEV    5  12
+-- 0261    JMP     16 => 0264
+-- 0262    KSHORT  16   1
+-- 0263    JMP     17 => 0265
+-- 0264    KSHORT  16  -1
+-- 0265    ADD      0   0  16
+-- 0266    ISNEV    3  13
+-- 0267    JMP     16 => 0270
+-- 0268    KSHORT  16   1
+-- 0269    JMP     17 => 0271
+-- 0270    KSHORT  16  -1
+-- 0271    ADD      0   0  16
+-- 0272    ISEQV    3  13
+-- 0273    JMP     16 => 0276
+-- 0274    KSHORT  16   1
+-- 0275    JMP     17 => 0277
+-- 0276    KSHORT  16  -1
+-- 0277    ADD      0   0  16
+-- 0278    ISEQV    3  14
+-- 0279    JMP     16 => 0282
+-- 0280    KSHORT  16   1
+-- 0281    JMP     17 => 0283
+-- 0282    KSHORT  16  -1
+-- 0283    ADD      0   0  16
+-- 0284    ISNEV    3  14
+-- 0285    JMP     16 => 0288
+-- 0286    KSHORT  16   1
+-- 0287    JMP     17 => 0289
+-- 0288    KSHORT  16  -1
+-- 0289    ADD      0   0  16
+-- 0290    ISEQV    8  15
+-- 0291    JMP     16 => 0294
+-- 0292    KSHORT  16   1
+-- 0293    JMP     17 => 0295
+-- 0294    KSHORT  16  -1
+-- 0295    ADD      0   0  16
+-- 0296    ISNEV    8  15
+-- 0297    JMP     16 => 0300
+-- 0298    KSHORT  16   1
+-- 0299    JMP     17 => 0301
+-- 0300    KSHORT  16  -1
+-- 0301    ADD      0   0  16
+-- 0302    GGET    16   3      ; "print"
+-- <print test result>
+-- 0310    RET0     0   1
+local huge = math.huge
+local cmptest = function()
+	local test = 0
+
+	local cmp = 9
+	-- ISLT no JMP
+	test = test + (not (cmp > huge) and 1 or -1)
+	-- ISLT with JMP
+	test = test + (not (cmp > 0) and 1 or -1)
+	-- ISGE no JMP
+	test = test + (cmp < huge and 1 or -1)
+	-- ISGE with JMP
+	test = test + (cmp < 0 and 1 or -1)
+	-- ISLE no JMP
+	test = test + (not (cmp <= 0) and 1 or -1)
+	-- ISLE with JMP
+	test = test + (not (cmp <= huge) and 1 or -1)
+	-- ISGT no JMP
+	test = test + (cmp >= 0 and 1 or -1)
+	-- ISGT with JMP
+	test = test + (cmp >= huge and 1 or -1)
+
+	-- XXX: NaN can't be compared to any value, hence no jump
+	-- occurs for any relation test bytecode.
+	local nan = 0/0
+	-- ISLT with NaN
+	test = test + (not (nan > 0) and 0 or -1)
+	-- ISGE with NaN
+	test = test + (nan < 0 and 0 or -1)
+	-- ISLE with NaN
+	test = test + (not (nan <= 0) and 0 or -1)
+	-- ISGT with NaN
+	test = test + (nan >= 0 and 0 or -1)
+
+	local str = 'QQ'
+	-- ISNES no JMP
+	test = test + (str == 'QQ' and 1 or -1)
+	-- ISEQS with JMP
+	test = test + (str ~= 'QQ' and 1 or -1)
+	-- ISEQS no JMP
+	test = test + (str ~= 'QKRQ' and 1 or -1)
+	-- ISNES with JMP
+	test = test + (str == 'QKRQ' and 1 or -1)
+
+	local sud = newproxy(true)
+	-- ISNES with JMP (non-string)
+	test = test + (sud == 'QQ' and 0 or -1)
+	-- ISEQS with JMP (non-string)
+	test = test + (sud ~= 'QQ' and 0 or 1)
+
+	local num = 9
+	-- ISNEN no JMP
+	test = test + (num == 9 and 1 or -1)
+	-- ISEQN with JMP
+	test = test + (num ~= 9 and 1 or -1)
+	-- ISEQN no JMP
+	test = test + (num ~= 0 and 1 or -1)
+	-- ISNEN with JMP
+	test = test + (num == 0 and 1 or -1)
+
+	local nud = newproxy(true)
+	-- ISNEN with JMP (non-numeric)
+	test = test + (nud == 9 and 0 or -1)
+	-- ISEQN with JMP (non-numeric)
+	test = test + (nud ~= 9 and 0 or 1)
+
+	local pri = true
+	-- ISNEP no JMP
+	test = test + (pri == true and 1 or -1)
+	-- ISEQP with JMP
+	test = test + (pri ~= true and 1 or -1)
+	-- ISEQP no JMP
+	test = test + (pri ~= false and 1 or -1)
+	-- ISNEP with JMP
+	test = test + (pri == false and 1 or -1)
+
+	local pud = newproxy(true)
+	-- ISNEP with JMP (non-pri)
+	test = test + (pud == nil and 1 or -1)
+	-- ISEQP no JMP (non-pri)
+	test = test + (pud ~= nil and 1 or -1)
+
+	local vnil = nil
+	local vpri = true
+	local vzero = 0
+	local vnum = 9
+	local vqkrq = 'QKRQ'
+	local vstr = 'QQ'
+	local vpud = pud
+	-- ISNEV no JMP (primitives)
+	test = test + (pri == vnil and 1 or -1)
+	-- ISEQV with JMP (primitives)
+	test = test + (pri ~= vnil and 1 or -1)
+	-- ISEQV no JMP (primitives)
+	test = test + (pri ~= vpri and 1 or -1)
+	-- ISNEV with JMP (primitives)
+	test = test + (pri == vpri and 1 or -1)
+	-- ISNEV no JMP (numbers)
+	test = test + (num == vzero and 1 or -1)
+	-- ISEQV with JMP (numbers)
+	test = test + (num ~= vzero and 1 or -1)
+	-- ISEQV no JMP (numbers)
+	test = test + (num ~= vnum and 1 or -1)
+	-- ISNEV with JMP (numbers)
+	test = test + (num == vnum and 1 or -1)
+	-- ISNEV no JMP (strings)
+	test = test + (str == vqkrq and 1 or -1)
+	-- ISEQV with JMP (strings)
+	test = test + (str ~= vqkrq and 1 or -1)
+	-- ISEQV no JMP (strings)
+	test = test + (str ~= vstr and 1 or -1)
+	-- ISNEV with JMP (strings)
+	test = test + (str == vstr and 1 or -1)
+	-- ISEQV no JMP (userdata)
+	test = test + (pud ~= vpud and 1 or -1)
+	-- ISNEV with JMP (userdata)
+	test = test + (pud == vpud and 1 or -1)
+	-- FIXME: Different userdata comparison is not tested,
+	-- since metamethods are NYI. Add more cases later.
+	-- FIXME: Table comparison is not tested, since all of the
+	-- table-related bytecodes are NYI. Add more cases later.
+
+	print('Comparison ops:', test == 0 and 'OK' or 'FAIL')
+end
+
 local cinterpcall = ujit.debug.cinterpcall
 assert(type(cinterpcall) == "function")
 
@@ -328,6 +758,7 @@ cinterpcall(taillcall01)
 cinterpcall(ret1, "FAIL1", "OK", "FAIL2")
 cinterpcall(utest)
 cinterpcall(uttest)
+cinterpcall(cmptest)
 
 local rv
 rv = cinterpcall(function(x, y) return y .. " world!" end,
